@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.env
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database (ignore temporary files but keep main database)
+db/*.db-shm
+db/*.db-wal
+# Keep db/soundlink-lite.db for the project
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

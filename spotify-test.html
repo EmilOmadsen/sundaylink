@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spotify Campaign Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #1db954, #1ed760);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .campaign-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: #1db954;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #1ed760;
+        }
+        .smart-link {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .spotify-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 Spotify Campaign Test</h1>
+        <p>Test campaign creation with Spotify integration</p>
+    </div>
+
+    <div class="campaign-card">
+        <h3>🚀 Create Spotify Campaign</h3>
+        <button class="btn" onclick="createSpotifyCampaign()">Create Spotify Test Campaign</button>
+        <button class="btn" onclick="createArtistCampaign()">Create Artist Campaign</button>
+        <button class="btn" onclick="createPlaylistCampaign()">Create Playlist Campaign</button>
+    </div>
+
+    <div id="result"></div>
+
+    <div class="campaign-card">
+        <h3>📊 Campaign Examples</h3>
+        <div class="spotify-info">
+            <h4>🎵 Track Campaign</h4>
+            <p><strong>Track ID:</strong> 4iV5W9uYEdYUVa79Axb7Rh</p>
+            <p><strong>Destination:</strong> https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh</p>
+        </div>
+        <div class="spotify-info">
+            <h4>👤 Artist Campaign</h4>
+            <p><strong>Artist ID:</strong> 1vCWHaC5f2uS3yhpwWbIA6</p>
+            <p><strong>Destination:</strong> https://open.spotify.com/artist/1vCWHaC5f2uS3yhpwWbIA6</p>
+        </div>
+        <div class="spotify-info">
+            <h4>📋 Playlist Campaign</h4>
+            <p><strong>Playlist ID:</strong> 37i9dQZF1DXcBWIGoYBM5M</p>
+            <p><strong>Destination:</strong> https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M</p>
+        </div>
+    </div>
+
+    <script>
+        async function createSpotifyCampaign() {
+            console.log('🎵 Creating Spotify track campaign...');
+            
+            try {
+                const response = await fetch('/api/campaigns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        name: 'Spotify Track Campaign - Test',
+                        destination_url: 'https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh',
+                        spotify_track_id: '4iV5W9uYEdYUVa79Axb7Rh',
+                        spotify_artist_id: '1vCWHaC5f2uS3yhpwWbIA6'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult('🎵 Spotify Track Campaign Created!', result);
+                } else {
+                    showError('❌ Error creating track campaign', result);
+                }
+            } catch (error) {
+                showError('❌ Network error', error.message);
+            }
+        }
+
+        async function createArtistCampaign() {
+            console.log('👤 Creating Spotify artist campaign...');
+            
+            try {
+                const response = await fetch('/api/campaigns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        name: 'Spotify Artist Campaign - Test',
+                        destination_url: 'https://open.spotify.com/artist/1vCWHaC5f2uS3yhpwWbIA6',
+                        spotify_artist_id: '1vCWHaC5f2uS3yhpwWbIA6'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult('👤 Spotify Artist Campaign Created!', result);
+                } else {
+                    showError('❌ Error creating artist campaign', result);
+                }
+            } catch (error) {
+                showError('❌ Network error', error.message);
+            }
+        }
+
+        async function createPlaylistCampaign() {
+            console.log('📋 Creating Spotify playlist campaign...');
+            
+            try {
+                const response = await fetch('/api/campaigns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        name: 'Spotify Playlist Campaign - Test',
+                        destination_url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+                        spotify_playlist_id: '37i9dQZF1DXcBWIGoYBM5M'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult('📋 Spotify Playlist Campaign Created!', result);
+                } else {
+                    showError('❌ Error creating playlist campaign', result);
+                }
+            } catch (error) {
+                showError('❌ Network error', error.message);
+            }
+        }
+
+        function showResult(title, result) {
+            document.getElementById('result').innerHTML = `
+                <div class="success">
+                    <h3>${title}</h3>
+                    <p><strong>Campaign ID:</strong> ${result.id}</p>
+                    <p><strong>Name:</strong> ${result.name}</p>
+                    <p><strong>Status:</strong> ${result.status}</p>
+                    <p><strong>Smart Link:</strong></p>
+                    <div class="smart-link">
+                        <a href="${result.smart_link_url}" target="_blank">${result.smart_link_url}</a>
+                    </div>
+                    <button class="btn" onclick="copyToClipboard('${result.smart_link_url}')">📋 Copy Smart Link</button>
+                    <button class="btn" onclick="testSmartLink('${result.smart_link_url}')">🔗 Test Smart Link</button>
+                </div>
+            `;
+        }
+
+        function showError(title, error) {
+            document.getElementById('result').innerHTML = `
+                <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 8px;">
+                    <h3>${title}</h3>
+                    <p>${error.error || error}</p>
+                </div>
+            `;
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('📋 Smart link copied to clipboard!');
+            }).catch(() => {
+                alert('❌ Failed to copy link');
+            });
+        }
+
+        function testSmartLink(url) {
+            window.open(url, '_blank');
+        }
+    </script>
+</body>
+</html>
+

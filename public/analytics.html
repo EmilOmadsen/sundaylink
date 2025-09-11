@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Advanced Analytics</title>
+  <link rel="stylesheet" href="/analytics.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="row">
+        <div>
+          <div id="campaignName" class="title">Campaign</div>
+          <div class="muted"><span id="campaignCreated"></span></div>
+        </div>
+        <div class="flex">
+          <span id="campaignStatus" class="pill" aria-label="Campaign status">STATUS</span>
+          <button class="btn secondary" id="range24h">24h</button>
+          <button class="btn secondary" id="range7">7d</button>
+          <button class="btn secondary" id="range14">14d</button>
+          <button class="btn secondary" id="range30">30d</button>
+          <button class="btn secondary" id="range60">60d</button>
+          <button class="btn secondary" id="range180">6m</button>
+          <button class="btn secondary" id="range365">1y</button>
+        </div>
+      </div>
+      <div id="narrative" class="muted" style="margin-top:6px"></div>
+    </div>
+
+    <div class="grid grid-4" id="kpiGrid" aria-label="KPI cards"></div>
+
+    <div class="section card">
+      <div class="row">
+        <div class="title">Trends</div>
+        <div class="muted">Streams & Listeners (Clicks optional)</div>
+      </div>
+      <canvas id="trendsChart" height="220" aria-label="Trends chart" role="img"></canvas>
+    </div>
+
+    <div class="section grid grid-2">
+      <div class="card">
+        <div class="row"><div class="title">Funnel</div></div>
+        <canvas id="funnelChart" height="180" aria-label="Funnel chart"></canvas>
+      </div>
+      <div class="card">
+        <div class="row"><div class="title">Followers Δ</div></div>
+        <canvas id="followersSpark" height="80"></canvas>
+        <div class="muted" style="margin-top:4px">Daily snapshots; change over selected range.</div>
+      </div>
+    </div>
+
+    <div class="section grid grid-2">
+      <div class="card">
+        <div class="row">
+          <div class="title">UTM Breakdown</div>
+          <div class="flex">
+            <button class="btn secondary" id="utmStreams">Streams</button>
+            <button class="btn secondary" id="utmClicks">Clicks</button>
+          </div>
+        </div>
+        <canvas id="utmChart" height="260" aria-label="UTM breakdown"></canvas>
+      </div>
+      <div class="card">
+        <div class="title">Attribution Mix</div>
+        <canvas id="attribChart" height="220" aria-label="Attribution confidence"></canvas>
+      </div>
+    </div>
+
+    <div class="section card">
+      <div class="title">Recent Activity</div>
+      <ul id="recentList" class="list" aria-live="polite"></ul>
+    </div>
+
+    <div id="empty" class="section card" style="display:none">
+      <div class="title">No data yet</div>
+      <div class="muted">Create a smart link, click it with UTM tags, login with Spotify, then play a track. Return to see data populate.</div>
+    </div>
+  </div>
+
+  <script src="/analytics.js"></script>
+</body>
+</html>
+

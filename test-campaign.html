@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Campaign Creation</title>
+    <style>
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            display: block;
+            margin: 20px auto;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        #result {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Campaign Creation</h1>
+    <button onclick="createTestCampaign()">Create Test Campaign</button>
+    <div id="result"></div>
+    
+    <script>
+        // Notification system
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideIn 0.3s ease-out;
+                max-width: 300px;
+            `;
+            
+            // Set background color based on type
+            if (type === 'success') {
+                notification.style.background = '#28a745';
+            } else if (type === 'error') {
+                notification.style.background = '#dc3545';
+            } else {
+                notification.style.background = '#007bff';
+            }
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+        
+        // Copy to clipboard function
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('📋 Smart link copied to clipboard!', 'success');
+            }).catch(() => {
+                showNotification('❌ Failed to copy link', 'error');
+            });
+        }
+        
+        // Navigate to dashboard with notification
+        function goToDashboard() {
+            showNotification('📊 Navigating to dashboard...', 'info');
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 1000);
+        }
+        
+        // Create another campaign with notification
+        function createAnother() {
+            showNotification('🔄 Creating new campaign...', 'info');
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        }
+        
+        async function createTestCampaign() {
+            console.log('🚀 Creating test campaign...');
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/campaigns/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        name: 'Test Campaign Direct - Fixed',
+                        destination_url: 'https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh',
+                        spotify_track_id: '4iV5W9uYEdYUVa79Axb7Rh'
+                    })
+                });
+                
+                console.log('Response:', response.status);
+                const result = await response.json();
+                console.log('Result:', result);
+                
+                if (response.ok) {
+                    // Show success notification
+                    showNotification('🎉 Campaign Created Successfully!', 'success');
+                    
+                    document.getElementById('result').innerHTML = `
+                        <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                            <h3>✅ SUCCESS!</h3>
+                            <p><strong>Campaign Created:</strong> ${result.name}</p>
+                            <p><strong>Campaign ID:</strong> ${result.id}</p>
+                            <p><strong>Smart Link:</strong> <a href="${result.smart_link_url}" target="_blank" style="color: #155724; font-weight: bold;">${result.smart_link_url}</a></p>
+                            <p><strong>Destination:</strong> ${result.destination_url}</p>
+                            <p><strong>Status:</strong> ${result.status}</p>
+                            <p><strong>Created:</strong> ${result.created_at}</p>
+                            <hr>
+                            <h4>Test the Smart Link:</h4>
+                            <p>Click the smart link above to test the redirect functionality!</p>
+                            <div style="margin-top: 15px;">
+                                <button onclick="copyToClipboard('${result.smart_link_url}')" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 10px;">📋 Copy Smart Link</button>
+                                <button onclick="goToDashboard()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-right: 10px;">📊 Return to Dashboard</button>
+                                <button onclick="createAnother()" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🔄 Create Another</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Show error notification
+                    showNotification('❌ Campaign creation failed!', 'error');
+                    
+                    document.getElementById('result').innerHTML = `
+                        <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                            <h3>❌ Error:</h3>
+                            <p>Status: ${response.status}</p>
+                            <p>Error: ${result.error || 'Unknown error'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('❌ Network error occurred!', 'error');
+                
+                document.getElementById('result').innerHTML = `
+                    <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3>❌ Network Error:</h3>
+                        <p>${error.message}</p>
+                        <p>Make sure the server is running on localhost:3000</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
