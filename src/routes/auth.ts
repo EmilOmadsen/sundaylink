@@ -117,7 +117,7 @@ router.get('/login', (req, res) => {
                     <label for="loginPassword">Password</label>
                     <input type="password" id="loginPassword" name="password" required>
                 </div>
-                <input type="hidden" name="click_id" value="${clickId || ''}">
+                <input type="hidden" name="click_id" value="\${clickId || ''}">
                 <button type="submit" class="btn">Login</button>
             </form>
 
@@ -135,7 +135,7 @@ router.get('/login', (req, res) => {
                     <label for="displayName">Display Name (Optional)</label>
                     <input type="text" id="displayName" name="display_name">
                 </div>
-                <input type="hidden" name="click_id" value="${clickId || ''}">
+                <input type="hidden" name="click_id" value="\${clickId || ''}">
                 <button type="submit" class="btn">Create Account</button>
             </form>
 
@@ -283,7 +283,7 @@ router.get('/register', (req, res) => {
                     <label for="displayName">Display Name (Optional)</label>
                     <input type="text" id="displayName" name="display_name">
                 </div>
-                <input type="hidden" name="click_id" value="${clickId || ''}">
+                <input type="hidden" name="click_id" value="\${clickId || ''}">
                 <button type="submit" class="btn">Create Account</button>
             </form>
 
@@ -315,14 +315,15 @@ router.post('/login', async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     });
 
-    // If there's a click_id, create a session
-    if (click_id) {
+    // If there's a click_id (from form or cookie), create a session
+    const clickIdToUse = click_id || req.cookies.click_id;
+    if (clickIdToUse) {
       try {
         sessionService.create({
-          click_id: click_id,
+          click_id: clickIdToUse,
           user_id: user.id
         });
-        console.log(`Created session linking user ${user.id} to click ${click_id}`);
+        console.log(`Created session linking user ${user.id} to click ${clickIdToUse}`);
       } catch (error) {
         console.log('Session creation failed or already exists:', error);
       }
@@ -367,8 +368,8 @@ router.post('/login', async (req, res) => {
       <body>
           <div class="container">
               <h1>✅ Welcome back!</h1>
-              <p>Hi ${user.display_name || user.email}, you've successfully logged in.</p>
-              ${!user.is_spotify_connected ? 
+              <p>Hi \${user.display_name || user.email}, you've successfully logged in.</p>
+              \${!user.is_spotify_connected ? 
                 '<p><a href="/auth/spotify" class="btn">Connect Spotify</a></p>' : 
                 '<p>✅ Spotify Connected</p>'
               }
@@ -404,14 +405,15 @@ router.post('/register', async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     });
 
-    // If there's a click_id, create a session
-    if (click_id) {
+    // If there's a click_id (from form or cookie), create a session
+    const clickIdToUse = click_id || req.cookies.click_id;
+    if (clickIdToUse) {
       try {
         sessionService.create({
-          click_id: click_id,
+          click_id: clickIdToUse,
           user_id: user.id
         });
-        console.log(`Created session linking user ${user.id} to click ${click_id}`);
+        console.log(`Created session linking user ${user.id} to click ${clickIdToUse}`);
       } catch (error) {
         console.log('Session creation failed or already exists:', error);
       }
@@ -456,7 +458,7 @@ router.post('/register', async (req, res) => {
       <body>
           <div class="container">
               <h1>🎉 Welcome to Sundaylink!</h1>
-              <p>Hi ${user.display_name || user.email}, your account has been created successfully.</p>
+              <p>Hi \${user.display_name || user.email}, your account has been created successfully.</p>
               <p>Connect your Spotify account to start tracking your music.</p>
               <p><a href="/auth/spotify" class="btn">Connect Spotify</a></p>
               <p><a href="/dashboard" class="btn">View Dashboard</a></p>
@@ -540,6 +542,21 @@ router.get('/spotify/callback', async (req, res) => {
       token_expires_at: new Date(Date.now() + tokens.expires_in * 1000)
     });
     console.log('✅ User updated with Spotify connection:', { user_id: updatedUser.id, email: updatedUser.email });
+
+    // Create sessions for any recent clicks (within last 48 hours)
+    console.log('🔗 Creating sessions for recent clicks...');
+    const clickId = req.cookies.click_id;
+    if (clickId) {
+      try {
+        const session = sessionService.create({
+          click_id: clickId,
+          user_id: userId
+        });
+        console.log('✅ Session created linking click to user:', { click_id: clickId, user_id: userId });
+      } catch (error) {
+        console.log('⚠️ Could not create session (click may already be linked):', error instanceof Error ? error.message : error);
+      }
+    }
 
     // Redirect to dashboard with success message
     console.log('🎯 Redirecting to dashboard with success message');

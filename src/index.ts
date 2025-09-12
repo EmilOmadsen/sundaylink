@@ -40,8 +40,8 @@ app.use(helmet({
       "style-src": ["'self'", "'unsafe-inline'", 'https:'],
       // Permit images and icons
       "img-src": ["'self'", 'data:', 'https:'],
-      // XHR/Fetch to same-origin APIs
-      "connect-src": ["'self'"]
+      // XHR/Fetch to same-origin APIs and Chart.js CDN
+      "connect-src": ["'self'", "https://cdn.jsdelivr.net"]
     }
   },
   crossOriginEmbedderPolicy: false

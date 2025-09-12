@@ -154,6 +154,12 @@ async function loadData(){
   attribChart?.destroy();
   attribChart = new Chart(el('attribChart'), doughnutConfig(['1.0 High','0.6 Medium','0.3 Low'], vals, ['#059669','#f59e0b','#ef4444']));
 
+  // Top songs
+  loadTopSongs();
+  
+  // Song popularity pie chart
+  loadSongPieChart();
+
   // Recent activity
   const recent = (json.recent||[]).slice(0,20);
   const list = el('recentList'); list.innerHTML='';
@@ -164,6 +170,186 @@ async function loadData(){
   });
 
   el('empty').style.display = cur.length===0 ? 'block' : 'none';
+}
+
+// Load top songs for the current campaign
+async function loadTopSongs() {
+  const container = el('topSongs');
+  container.innerHTML = 'Loading...';
+  
+  try {
+    const campaignId = new URLSearchParams(window.location.search).get('campaignId');
+    if (!campaignId) {
+      container.innerHTML = 'No campaign selected';
+      return;
+    }
+    
+    const response = await fetch(`/api/metrics/campaigns/${campaignId}/songs`);
+    const data = await response.json();
+    
+    if (data.songs && data.songs.length > 0) {
+      container.innerHTML = data.songs.slice(0, 10).map((song, index) => `
+        <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #eee;">
+          <div style="font-weight: bold; color: #1db954; min-width: 20px;">#${index + 1}</div>
+          <div style="flex: 1;">
+            <div style="font-weight: 500;">${song.track_name}</div>
+            <div style="font-size: 12px; color: #666;">${song.artist_name}</div>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #666;">
+            <div style="font-weight: bold; color: #1db954;">${song.play_count} plays</div>
+            <div>${song.unique_listeners} listeners</div>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      container.innerHTML = 'No songs data available yet. Click tracking links and stream music!';
+    }
+  } catch (error) {
+    console.error('Error loading top songs:', error);
+    container.innerHTML = 'Error loading songs data';
+  }
+}
+
+// Load song popularity pie chart across all campaigns
+async function loadSongPieChart() {
+  const canvas = el('songPieChart');
+  if (!canvas) return;
+  
+  try {
+    // Get all campaigns with their song data
+    const campaignsResponse = await fetch('/api/metrics/campaigns');
+    const campaignsData = await campaignsResponse.json();
+    
+    if (!campaignsData.campaigns || campaignsData.campaigns.length === 0) {
+      canvas.parentElement.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No campaigns found</div>';
+      return;
+    }
+    
+    // Collect all songs from all campaigns
+    const allSongs = [];
+    for (const campaign of campaignsData.campaigns) {
+      try {
+        const songsResponse = await fetch(`/api/metrics/campaigns/${campaign.id}/songs`);
+        const songsData = await songsResponse.json();
+        
+        if (songsData.songs && songsData.songs.length > 0) {
+          songsData.songs.forEach(song => {
+            allSongs.push({
+              ...song,
+              campaign_name: campaign.name,
+              campaign_id: campaign.id
+            });
+          });
+        }
+      } catch (error) {
+        console.error(`Error fetching songs for campaign ${campaign.id}:`, error);
+      }
+    }
+    
+    if (allSongs.length === 0) {
+      canvas.parentElement.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No songs data found</div>';
+      return;
+    }
+    
+    // Group songs by track and sum play counts
+    const songMap = new Map();
+    allSongs.forEach(song => {
+      const key = `${song.track_name} - ${song.artist_name}`;
+      if (songMap.has(key)) {
+        songMap.get(key).play_count += song.play_count;
+        songMap.get(key).unique_listeners += song.unique_listeners;
+      } else {
+        songMap.set(key, {
+          track_name: song.track_name,
+          artist_name: song.artist_name,
+          play_count: song.play_count,
+          unique_listeners: song.unique_listeners,
+          spotify_url: song.spotify_url,
+          campaign_name: song.campaign_name
+        });
+      }
+    });
+    
+    // Sort by play count and take top 8 for better pie chart readability
+    const topSongs = Array.from(songMap.values())
+      .sort((a, b) => b.play_count - a.play_count)
+      .slice(0, 8);
+    
+    if (topSongs.length === 0) {
+      canvas.parentElement.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No songs data available</div>';
+      return;
+    }
+    
+    // Generate colors for the pie chart
+    const colors = [
+      '#1db954', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4',
+      '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'
+    ];
+    
+    const chartData = {
+      labels: topSongs.map(song => song.track_name.length > 20 ? 
+        song.track_name.substring(0, 20) + '...' : song.track_name),
+      datasets: [{
+        data: topSongs.map(song => song.play_count),
+        backgroundColor: colors.slice(0, topSongs.length),
+        borderColor: '#fff',
+        borderWidth: 2,
+        hoverBorderWidth: 3
+      }]
+    };
+    
+    // Destroy existing chart if it exists
+    if (window.songPieChart) {
+      window.songPieChart.destroy();
+    }
+    
+    window.songPieChart = new Chart(canvas, {
+      type: 'pie',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              padding: 15,
+              font: {
+                size: 11
+              }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const song = topSongs[context.dataIndex];
+                return [
+                  `${song.track_name}`,
+                  `Artist: ${song.artist_name}`,
+                  `Plays: ${song.play_count}`,
+                  `Listeners: ${song.unique_listeners}`,
+                  `Campaign: ${song.campaign_name}`
+                ];
+              }
+            }
+          }
+        },
+        onClick: function(event, elements) {
+          if (elements.length > 0) {
+            const song = topSongs[elements[0].index];
+            if (song.spotify_url) {
+              window.open(song.spotify_url, '_blank');
+            }
+          }
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error loading song pie chart:', error);
+    canvas.parentElement.innerHTML = '<div style="text-align: center; color: #d32f2f; padding: 20px;">Error loading chart</div>';
+  }
 }
 
 // Event wiring

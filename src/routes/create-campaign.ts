@@ -177,9 +177,6 @@ router.get('/', (req, res) => {
         <div class="header">
             <h1>🔗 Create New Campaign</h1>
             <p>Generate smart tracking links for your content</p>
-            <div style="margin-top: 15px;">
-                <a href="/dashboard" class="btn" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);">📊 Return to Dashboard</a>
-            </div>
         </div>
 
         <div class="container">
@@ -229,7 +226,6 @@ router.get('/', (req, res) => {
 
                     <div class="actions">
                         <button type="submit" class="btn">Create Campaign</button>
-                        <a href="/dashboard" class="btn btn-secondary">📊 Return to Dashboard</a>
                         <a href="/dashboard" class="btn btn-secondary">Cancel</a>
                     </div>
                 </form>
@@ -238,9 +234,8 @@ router.get('/', (req, res) => {
                     <h3>✅ Campaign Created Successfully!</h3>
                     <p>Your smart tracking link:</p>
                     <div class="smart-link" id="generated-link"></div>
-                    <button onclick="copyLink()" class="btn">📋 Copy Link</button>
-                    <a href="/dashboard" class="btn btn-secondary">📊 Back to Dashboard</a>
-                    <button onclick="location.reload()" class="btn" style="background: #6c757d;">🔄 Create Another</button>
+                    <button onclick="copyLink()" class="btn">Copy Link</button>
+                    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
                 </div>
             </div>
         </div>
@@ -311,17 +306,17 @@ router.get('/', (req, res) => {
                         // Show alert as backup notification
                         alert('🎉 SUCCESS! Campaign "' + result.name + '" is now ACTIVE and ready to track clicks!');
                         
-                        // Show browser notification if supported
+                        // Try to show browser notification
                         if ('Notification' in window) {
                             if (Notification.permission === 'granted') {
-                                new Notification('🎉 Campaign Created!', {
+                                new Notification('🎉 Campaign Active!', {
                                     body: 'Smart link for "' + result.name + '" is ready to share',
                                     icon: '🔗'
                                 });
                             } else if (Notification.permission !== 'denied') {
                                 Notification.requestPermission().then(permission => {
                                     if (permission === 'granted') {
-                                        new Notification('🎉 Campaign Created!', {
+                                        new Notification('🎉 Campaign Active!', {
                                             body: 'Smart link for "' + result.name + '" is ready to share'
                                         });
                                     }
@@ -330,14 +325,7 @@ router.get('/', (req, res) => {
                         }
                     } else {
                         console.log('❌ Request failed:', response.status, result);
-                        const errorMsg = document.getElementById('error-message');
-                        errorMsg.textContent = '❌ Error: ' + (result.error || 'Failed to create campaign');
-                        errorMsg.style.display = 'block';
-                        
-                        // Reset button state on error
-                        submitBtn.textContent = originalText;
-                        submitBtn.disabled = false;
-                        return;
+                        throw new Error(result.error || 'Failed to create campaign');
                     }
                 } catch (error) {
                     console.error('❌ Error creating campaign:', error);

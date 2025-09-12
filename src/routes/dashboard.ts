@@ -200,9 +200,9 @@ router.get('/', (req, res) => {
             
             <div class="spotify-status">
                 <div class="stat-card">
-                    <div class="stat-value">${spotifyConnected ? '✅ Connected' : '❌ Not Connected'}</div>
+                    <div class="stat-value">\${spotifyConnected ? '✅ Connected' : '❌ Not Connected'}</div>
                     <div class="stat-label">Spotify Connection</div>
-                    ${!spotifyConnected ? `<a href="/auth/spotify" class="btn btn-small">Connect Spotify</a>` : ''}
+                    \${!spotifyConnected ? '<a href="/auth/spotify" class="btn btn-small">Connect Spotify</a>' : ''}
                 </div>
             </div>
             
@@ -230,6 +230,10 @@ router.get('/', (req, res) => {
                     <div class="stat-value" id="total-listeners">-</div>
                     <div class="stat-label">Unique Listeners</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-unique-songs">-</div>
+                    <div class="stat-label">Unique Songs</div>
+                </div>
             </div>
 
             <div class="campaigns-section">
@@ -243,6 +247,7 @@ router.get('/', (req, res) => {
                             <th>Smart Link</th>
                             <th>Clicks</th>
                             <th>Streams</th>
+                            <th>Unique Songs</th>
                             <th>S/L</th>
                             <th>Followers Δ</th>
                             <th>Created</th>
@@ -254,12 +259,12 @@ router.get('/', (req, res) => {
                 </table>
             </div>
 
-            <div class="campaigns-section" id="recentPlaysSection">
+            <div class="campaigns-section" id="songAnalyticsSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h2 class="section-title">Recent Plays</h2>
-                    <button onclick="loadRecentPlays()" class="btn btn-small">🔄 Refresh</button>
+                    <h2 class="section-title" id="songAnalyticsTitle">Song Analytics</h2>
+                    <button onclick="hideSongAnalytics()" class="btn btn-small">✕ Close</button>
                 </div>
-                <div id="recent-plays-list" class="loading">Loading recent plays...</div>
+                <div id="song-analytics-content" class="loading">Loading song analytics...</div>
             </div>
 
             <div class="campaigns-section" id="analyticsSection">
@@ -274,8 +279,8 @@ router.get('/', (req, res) => {
                     <button class="btn btn-small" onclick="setRange(180)">6m</button>
                     <button class="btn btn-small" onclick="setRange(365)">1y</button>
                 </div>
-                <canvas id="clicksChart" height="120"></canvas>
-                <canvas id="streamsChart" height="120" style="margin-top:20px"></canvas>
+                <canvas id="clicksChart" width="800" height="120" style="width: 100%; max-width: 800px;"></canvas>
+                <canvas id="streamsChart" width="800" height="120" style="width: 100%; max-width: 800px; margin-top:20px;"></canvas>
             </div>
             
             <!-- Modal removed per request: analytics stays inline only -->
@@ -283,28 +288,44 @@ router.get('/', (req, res) => {
 
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
         <script>
+            // Wait for Chart.js to load
+            window.addEventListener('load', function() {
+                console.log('Chart.js loaded:', typeof Chart !== 'undefined');
+            });
+            
             let campaignsData = [];
 
             async function loadDashboard() {
                 try {
+                    console.log('Loading dashboard data...');
                     const response = await fetch('/api/metrics/campaigns');
+                    console.log('Response status:', response.status);
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch campaigns: ' + response.status);
+                    }
+                    
                     const data = await response.json();
+                    console.log('Dashboard data received:', data);
                     
                     // Update stats
                     document.getElementById('total-campaigns').textContent = data.summary.total_campaigns;
                     document.getElementById('total-clicks').textContent = data.summary.total_clicks;
                     document.getElementById('total-streams').textContent = data.summary.total_streams;
                     document.getElementById('total-listeners').textContent = data.summary.total_listeners;
+                    document.getElementById('total-unique-songs').textContent = data.summary.total_unique_songs;
 
                     // Update campaigns table
                     campaignsData = data.campaigns;
+                    console.log('Campaigns data:', campaignsData);
                     renderCampaignsTable();
 
                     document.getElementById('campaigns-loading').style.display = 'none';
                     document.getElementById('campaigns-table').style.display = 'table';
+                    console.log('Dashboard loaded successfully');
                 } catch (error) {
                     console.error('Error loading dashboard:', error);
-                    document.getElementById('campaigns-loading').textContent = 'Error loading campaigns';
+                    document.getElementById('campaigns-loading').textContent = 'Error loading campaigns: ' + (error instanceof Error ? error.message : error);
                 }
             }
 
@@ -318,29 +339,28 @@ router.get('/', (req, res) => {
                     const smartLink = window.location.origin + '/c/' + campaign.id;
                     const createdDate = new Date(campaign.created_at).toLocaleDateString();
                     
-                    row.innerHTML = \`
-                        <td>
-                            <strong>\${campaign.name}</strong>
-                            <br><small>\${campaign.destination_url}</small>
-                        </td>
-                        <td>
-                            <span class="status-badge status-\${campaign.status}">\${campaign.status}</span>
-                        </td>
-                        <td>
-                            <div class="smart-link">\${smartLink}</div>
-                            <button onclick="copyToClipboard('\${smartLink}')" class="btn btn-small">Copy</button>
-                        </td>
-                        <td>\${campaign.metrics.clicks}</td>
-                        <td>\${campaign.metrics.streams}</td>
-                        <td>\${campaign.metrics.streams_per_listener.toFixed(1)}</td>
-                        <td>\${campaign.metrics.followers_delta > 0 ? '+' : ''}\${campaign.metrics.followers_delta}</td>
-                        <td>\${createdDate}</td>
-                        <td>
-                            <button onclick="viewCampaign('\${campaign.id}')" class="btn btn-small">View</button>
-                            <button onclick="pauseCampaign('\${campaign.id}')" class="btn btn-small">Pause</button>
-                            <button onclick="deleteCampaign('\${campaign.id}')" class="btn btn-small btn-danger">Delete</button>
-                        </td>
-                    \`;
+                    row.innerHTML = '<td>' +
+                        '<strong>' + campaign.name + '</strong>' +
+                        '<br><small>' + campaign.destination_url + '</small>' +
+                        '</td>' +
+                        '<td>' +
+                        '<span class="status-badge status-' + campaign.status + '">' + campaign.status + '</span>' +
+                        '</td>' +
+                        '<td>' +
+                        '<div class="smart-link">' + smartLink + '</div>' +
+                        '<button onclick="copyToClipboard(\'' + smartLink + '\')" class="btn btn-small">Copy</button>' +
+                        '</td>' +
+                        '<td>' + campaign.metrics.clicks + '</td>' +
+                        '<td>' + campaign.metrics.streams + '</td>' +
+                        '<td>' + (campaign.metrics.unique_songs || 0) + '</td>' +
+                        '<td>' + campaign.metrics.streams_per_listener.toFixed(1) + '</td>' +
+                        '<td>' + (campaign.metrics.followers_delta > 0 ? '+' : '') + campaign.metrics.followers_delta + '</td>' +
+                        '<td>' + createdDate + '</td>' +
+                        '<td>' +
+                        '<button onclick="viewCampaign(\'' + campaign.id + '\')" class="btn btn-small">View</button>' +
+                        '<button onclick="pauseCampaign(\'' + campaign.id + '\')" class="btn btn-small">Pause</button>' +
+                        '<button onclick="deleteCampaign(\'' + campaign.id + '\')" class="btn btn-small btn-danger">Delete</button>' +
+                        '</td>';
                     
                     tbody.appendChild(row);
                 });
@@ -384,12 +404,39 @@ router.get('/', (req, res) => {
             }
 
             function viewCampaign(campaignId) {
-                // Load in-page charts and scroll to analytics section (no modal)
+                console.log('viewCampaign called with ID:', campaignId);
+                
+                // Hide the hint message
+                document.getElementById('chart-hint').style.display = 'none';
+                
+                // Show loading message
+                const analyticsSection = document.getElementById('analyticsSection');
+                const loadingDiv = document.createElement('div');
+                loadingDiv.id = 'chart-loading';
+                loadingDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Loading charts...</div>';
+                analyticsSection.appendChild(loadingDiv);
+                
+                // Load charts
                 loadCharts(campaignId).then(() => {
-                    const section = document.getElementById('analyticsSection');
-                    if (section && section.scrollIntoView) {
-                        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    console.log('Charts loaded successfully');
+                    // Remove loading message
+                    const loadingEl = document.getElementById('chart-loading');
+                    if (loadingEl) loadingEl.remove();
+                    
+                    // Scroll to analytics section
+                    if (analyticsSection && analyticsSection.scrollIntoView) {
+                        analyticsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
+                }).catch(error => {
+                    console.error('Error in viewCampaign:', error);
+                    // Remove loading message
+                    const loadingEl = document.getElementById('chart-loading');
+                    if (loadingEl) loadingEl.remove();
+                    
+                    // Show error message
+                    const errorDiv = document.createElement('div');
+                    errorDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error loading charts. Please try again.</div>';
+                    analyticsSection.appendChild(errorDiv);
                 });
             }
 
@@ -397,9 +444,18 @@ router.get('/', (req, res) => {
             function setRange(days){ analyticsRangeDays = days; if(window._currentCampaignId){ loadCharts(window._currentCampaignId); } }
             async function loadCharts(campaignId) {
                 try {
+                    console.log('Loading charts for campaign:', campaignId);
                     window._currentCampaignId = campaignId;
+                    
+                    // Fetch data
                     const res = await fetch('/api/metrics/campaigns/' + campaignId + '/timeseries?days=' + analyticsRangeDays);
+                    if (!res.ok) {
+                        throw new Error('Failed to fetch chart data: ' + res.status);
+                    }
                     const data = await res.json();
+                    console.log('Chart data received:', data);
+                    
+                    // Process data
                     const labels = Array.from(new Set([
                         ...data.clicksByDay.map(d => d.day),
                         ...data.streamsByDay.map(d => d.day)
@@ -410,48 +466,158 @@ router.get('/', (req, res) => {
                     const clicks = labels.map(l => clicksMap[l] || 0);
                     const streams = labels.map(l => streamsMap[l] || 0);
 
-                    document.getElementById('chart-hint').style.display = 'none';
+                    console.log('Chart labels:', labels);
+                    console.log('Chart clicks data:', clicks);
+                    console.log('Chart streams data:', streams);
 
+                    // Get canvas elements
                     const ctx1 = document.getElementById('clicksChart');
                     const ctx2 = document.getElementById('streamsChart');
+                    
+                    if (!ctx1 || !ctx2) {
+                        throw new Error('Canvas elements not found');
+                    }
+                    
+                    console.log('Canvas elements found:', { ctx1: !!ctx1, ctx2: !!ctx2 });
 
-                    if (clicksChart) clicksChart.destroy();
-                    if (streamsChart) streamsChart.destroy();
+                    // Destroy existing charts
+                    if (clicksChart) {
+                        clicksChart.destroy();
+                        clicksChart = null;
+                    }
+                    if (streamsChart) {
+                        streamsChart.destroy();
+                        streamsChart = null;
+                    }
 
+                    // Check if Chart.js is available, if not create simple HTML charts
+                    if (typeof Chart === 'undefined') {
+                        console.log('Chart.js not available, creating simple HTML charts');
+                        createSimpleCharts(labels, clicks, streams);
+                        return;
+                    }
+
+                    // Create charts
+                    console.log('Creating clicks chart...');
                     clicksChart = new Chart(ctx1, {
                         type: 'line',
                         data: {
-                            labels,
+                            labels: labels,
                             datasets: [{
                                 label: 'Clicks (last ' + analyticsRangeDays + ' days)',
                                 data: clicks,
                                 borderColor: '#667eea',
                                 backgroundColor: 'rgba(102,126,234,0.15)',
                                 tension: 0.25,
-                                fill: true
+                                fill: true,
+                                pointRadius: 4,
+                                pointHoverRadius: 6
                             }]
                         },
-                        options: { scales: { y: { beginAtZero: true } } }
+                        options: { 
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: { 
+                                y: { 
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                } 
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            }
+                        }
                     });
+                    console.log('Clicks chart created successfully');
 
+                    console.log('Creating streams chart...');
                     streamsChart = new Chart(ctx2, {
                         type: 'line',
                         data: {
-                            labels,
+                            labels: labels,
                             datasets: [{
                                 label: 'Streams (last ' + analyticsRangeDays + ' days)',
                                 data: streams,
                                 borderColor: '#22c55e',
                                 backgroundColor: 'rgba(34,197,94,0.15)',
                                 tension: 0.25,
-                                fill: true
+                                fill: true,
+                                pointRadius: 4,
+                                pointHoverRadius: 6
                             }]
                         },
-                        options: { scales: { y: { beginAtZero: true } } }
+                        options: { 
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: { 
+                                y: { 
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                } 
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            }
+                        }
                     });
+                    console.log('Streams chart created successfully');
+                    
                 } catch (e) {
-                    console.error('Failed to load charts', e);
+                    console.error('Failed to load charts:', e);
+                    throw e; // Re-throw to be caught by viewCampaign
                 }
+            }
+
+            // Simple HTML charts as fallback
+            function createSimpleCharts(labels: string[], clicks: number[], streams: number[]) {
+                const ctx1 = document.getElementById('clicksChart');
+                const ctx2 = document.getElementById('streamsChart');
+                
+                if (!ctx1 || !ctx2) return;
+                
+                // Create simple bar chart for clicks
+                let clicksHtml = '';
+                for (let i = 0; i < labels.length; i++) {
+                    const height = Math.max(20, (clicks[i] / Math.max(...clicks)) * 80);
+                    clicksHtml += '<div style="display: flex; flex-direction: column; align-items: center; flex: 1;">';
+                    clicksHtml += '<div style="background: #667eea; width: 100%; height: ' + height + 'px; border-radius: 4px 4px 0 0; margin-bottom: 5px;"></div>';
+                    clicksHtml += '<div style="font-size: 12px; color: #666;">' + clicks[i] + '</div>';
+                    clicksHtml += '<div style="font-size: 10px; color: #999;">' + labels[i] + '</div>';
+                    clicksHtml += '</div>';
+                }
+                
+                ctx1.innerHTML = '<div style="padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">' +
+                    '<h3 style="margin: 0 0 15px 0; color: #667eea;">Clicks (last ' + analyticsRangeDays + ' days)</h3>' +
+                    '<div style="display: flex; align-items: end; gap: 10px; height: 100px;">' +
+                    clicksHtml +
+                    '</div></div>';
+                
+                // Create simple bar chart for streams
+                let streamsHtml = '';
+                for (let i = 0; i < labels.length; i++) {
+                    const height = Math.max(20, (streams[i] / Math.max(...streams)) * 80);
+                    streamsHtml += '<div style="display: flex; flex-direction: column; align-items: center; flex: 1;">';
+                    streamsHtml += '<div style="background: #22c55e; width: 100%; height: ' + height + 'px; border-radius: 4px 4px 0 0; margin-bottom: 5px;"></div>';
+                    streamsHtml += '<div style="font-size: 12px; color: #666;">' + streams[i] + '</div>';
+                    streamsHtml += '<div style="font-size: 10px; color: #999;">' + labels[i] + '</div>';
+                    streamsHtml += '</div>';
+                }
+                
+                ctx2.innerHTML = '<div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">' +
+                    '<h3 style="margin: 0 0 15px 0; color: #22c55e;">Streams (last ' + analyticsRangeDays + ' days)</h3>' +
+                    '<div style="display: flex; align-items: end; gap: 10px; height: 100px;">' +
+                    streamsHtml +
+                    '</div></div>';
             }
 
             // Modal logic removed
@@ -493,7 +659,7 @@ router.get('/', (req, res) => {
                 })
                 .catch(error => {
                     console.error('Error deleting campaign:', error);
-                    alert('Error deleting campaign: ' + error.message);
+                    alert('Error deleting campaign: ' + (error instanceof Error ? error.message : error));
                 });
             }
 
@@ -501,7 +667,6 @@ router.get('/', (req, res) => {
                 document.getElementById('campaigns-loading').style.display = 'block';
                 document.getElementById('campaigns-table').style.display = 'none';
                 loadDashboard();
-                loadRecentPlays(); // Also refresh recent plays
             }
 
             function runPolling() {
@@ -520,59 +685,84 @@ router.get('/', (req, res) => {
                 });
             }
 
-            // Load recent plays
-            async function loadRecentPlays() {
-                const container = document.getElementById('recent-plays-list');
-                container.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Loading recent plays...</div>';
+
+            // Show song analytics for a specific campaign
+            async function showSongAnalytics(campaignId, campaignName) {
+                const section = document.getElementById('songAnalyticsSection');
+                const title = document.getElementById('songAnalyticsTitle');
+                const content = document.getElementById('song-analytics-content');
+                
+                title.textContent = 'Song Analytics - ' + campaignName;
+                section.style.display = 'block';
+                content.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Loading song analytics...</div>';
+                
+                // Scroll to the analytics section
+                section.scrollIntoView({ behavior: 'smooth' });
                 
                 try {
-                    const response = await fetch('/api/metrics/recent-plays');
+                    const response = await fetch('/api/metrics/campaigns/' + campaignId + '/songs');
                     const data = await response.json();
-                    if (data.plays && data.plays.length > 0) {
-                        container.innerHTML = data.plays.map(play => \`
-                            <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 12px;">
-                                <div style="flex-shrink: 0;">
-                                    \${play.spotify_track_id ? \`
-                                        <img src="\${play.artwork_url}" 
-                                             style="width: 50px; height: 50px; border-radius: 4px; object-fit: cover;"
-                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
-                                             alt="Track artwork">
-                                        <div style="width: 50px; height: 50px; background: #f0f0f0; border-radius: 4px; display: none; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">🎵</div>
-                                    \` : \`
-                                        <div style="width: 50px; height: 50px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">🎵</div>
-                                    \`}
-                                </div>
-                                <div style="flex: 1; min-width: 0;">
-                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                        <strong style="font-size: 14px; color: #333;">\${play.track_name}</strong>
-                                        \${play.spotify_url ? \`<a href="\${play.spotify_url}" target="_blank" style="color: #1db954; text-decoration: none; font-size: 12px;">🔗</a>\` : ''}
-                                    </div>
-                                    <small style="color: #666; font-size: 12px;">\${play.artist_name}</small>
-                                </div>
-                                <div style="text-align: right; font-size: 11px; color: #666; flex-shrink: 0;">
-                                    \${new Date(play.played_at).toLocaleString()}<br>
-                                    \${play.campaign_name ? \`<span style="background: #e3f2fd; padding: 2px 6px; border-radius: 3px; font-size: 10px; color: #1976d2;">\${play.campaign_name}</span>\` : ''}
-                                </div>
-                            </div>
-                        \`).join('');
+                    
+                    if (data.songs && data.songs.length > 0) {
+                        let songsHtml = '<div style="margin-bottom: 15px; font-size: 14px; color: #666;">' +
+                            'Showing ' + data.songs.length + ' songs ranked by play count' +
+                            '</div>';
+                        
+                        data.songs.forEach((song, index) => {
+                            songsHtml += '<div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 12px;">';
+                            songsHtml += '<div style="flex-shrink: 0; text-align: center; min-width: 30px;">';
+                            songsHtml += '<div style="font-weight: bold; color: #1db954; font-size: 16px;">#' + (index + 1) + '</div>';
+                            songsHtml += '</div>';
+                            songsHtml += '<div style="flex-shrink: 0;">';
+                            
+                            if (song.spotify_track_id) {
+                                songsHtml += '<img src="' + song.artwork_url + '" ' +
+                                    'style="width: 50px; height: 50px; border-radius: 4px; object-fit: cover;" ' +
+                                    'onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'block\';" ' +
+                                    'alt="Track artwork">';
+                                songsHtml += '<div style="width: 50px; height: 50px; background: #f0f0f0; border-radius: 4px; display: none; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">🎵</div>';
+                            } else {
+                                songsHtml += '<div style="width: 50px; height: 50px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">🎵</div>';
+                            }
+                            
+                            songsHtml += '</div>';
+                            songsHtml += '<div style="flex: 1; min-width: 0;">';
+                            songsHtml += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">';
+                            songsHtml += '<strong style="font-size: 14px; color: #333;">' + song.track_name + '</strong>';
+                            
+                            if (song.spotify_url) {
+                                songsHtml += '<a href="' + song.spotify_url + '" target="_blank" style="color: #1db954; text-decoration: none; font-size: 12px;">🔗</a>';
+                            }
+                            
+                            songsHtml += '</div>';
+                            songsHtml += '<small style="color: #666; font-size: 12px;">' + song.artist_name + '</small>';
+                            songsHtml += '</div>';
+                            songsHtml += '<div style="text-align: right; font-size: 11px; color: #666; flex-shrink: 0;">';
+                            songsHtml += '<div style="font-weight: bold; color: #1db954;">' + song.play_count + ' plays</div>';
+                            songsHtml += '<div>' + song.unique_listeners + ' listeners</div>';
+                            songsHtml += '<div style="font-size: 10px;">Avg: ' + (song.avg_confidence * 100).toFixed(0) + '% confidence</div>';
+                            songsHtml += '</div>';
+                            songsHtml += '</div>';
+                        });
+                        
+                        content.innerHTML = songsHtml;
                     } else {
-                        container.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No recent plays found. Click a tracking link and stream some music!</div>';
+                        content.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No songs found for this campaign yet. Click the tracking link and stream some music!</div>';
                     }
                 } catch (error) {
-                    console.error('Error loading recent plays:', error);
-                    document.getElementById('recent-plays-list').innerHTML = '<div style="text-align: center; color: #d32f2f; padding: 20px;">Error loading recent plays</div>';
+                    console.error('Error loading song analytics:', error);
+                    content.innerHTML = '<div style="text-align: center; color: #d32f2f; padding: 20px;">Error loading song analytics</div>';
                 }
             }
 
-            // Auto-refresh recent plays every 30 seconds
-            function startRecentPlaysRefresh() {
-                setInterval(loadRecentPlays, 30000); // Refresh every 30 seconds
+            // Hide song analytics section
+            function hideSongAnalytics() {
+                document.getElementById('songAnalyticsSection').style.display = 'none';
             }
+
 
             // Load dashboard on page load
             loadDashboard();
-            loadRecentPlays();
-            startRecentPlaysRefresh();
         </script>
     </body>
     </html>

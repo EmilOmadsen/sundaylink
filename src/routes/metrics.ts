@@ -150,6 +150,18 @@ router.get('/campaigns', (req, res) => {
         followersDelta = followersService.getFollowersDelta(campaign.spotify_playlist_id, 'playlist', 7);
       }
 
+      // Get unique songs count for this campaign
+      let uniqueSongs = 0;
+      if (campaign.spotify_playlist_id) {
+        const uniqueSongsResult = db.prepare(`
+          SELECT COUNT(DISTINCT p.spotify_track_id) as unique_songs
+          FROM attributions a
+          JOIN plays p ON a.play_id = p.id
+          WHERE a.campaign_id = ? AND a.expires_at > datetime('now')
+        `).get(campaign.id) as { unique_songs: number };
+        uniqueSongs = uniqueSongsResult?.unique_songs || 0;
+      }
+
       const createdDate = new Date(campaign.created_at);
       const now = new Date();
       const daysActive = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -162,7 +174,8 @@ router.get('/campaigns', (req, res) => {
           streams: attributionStats.total_attributions,
           listeners: attributionStats.unique_listeners,
           streams_per_listener: attributionStats.streams_per_listener,
-          followers_delta: followersDelta?.delta || 0
+          followers_delta: followersDelta?.delta || 0,
+          unique_songs: uniqueSongs
         }
       };
     });
@@ -174,7 +187,8 @@ router.get('/campaigns', (req, res) => {
         active_campaigns: campaigns.filter(c => c.status === 'active').length,
         total_clicks: campaignsWithMetrics.reduce((sum, c) => sum + c.metrics.clicks, 0),
         total_streams: campaignsWithMetrics.reduce((sum, c) => sum + c.metrics.streams, 0),
-        total_listeners: campaignsWithMetrics.reduce((sum, c) => sum + c.metrics.listeners, 0)
+        total_listeners: campaignsWithMetrics.reduce((sum, c) => sum + c.metrics.listeners, 0),
+        total_unique_songs: campaignsWithMetrics.reduce((sum, c) => sum + c.metrics.unique_songs, 0)
       }
     });
   } catch (error) {
@@ -305,7 +319,88 @@ function groupBy(array: any[], field: string): Record<string, number> {
   }, {});
 }
 
-// Get recent plays with campaign attribution
+// Get songs listened to per campaign (only from the specific playlist after clicking)
+router.get('/campaigns/:campaignId/songs', async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    
+    // Get campaign info to ensure we have a playlist
+    const campaign = campaignService.getById(campaignId);
+    if (!campaign || !campaign.spotify_playlist_id) {
+      return res.json({ songs: [], message: 'Campaign has no associated playlist' });
+    }
+    
+    // Get all songs played that are attributed to this campaign
+    // These are songs that were played AFTER clicking the tracking link
+    const songs = db.prepare(`
+      SELECT 
+        p.spotify_track_id,
+        p.track_name,
+        p.artist_name,
+        COUNT(*) as play_count,
+        COUNT(DISTINCT p.user_id) as unique_listeners,
+        MIN(p.played_at) as first_played,
+        MAX(p.played_at) as last_played,
+        AVG(a.confidence) as avg_confidence,
+        COUNT(DISTINCT a.click_id) as unique_clicks_attributed
+      FROM plays p
+      INNER JOIN attributions a ON p.id = a.play_id
+      WHERE a.campaign_id = ? AND p.expires_at > datetime('now')
+      GROUP BY p.spotify_track_id, p.track_name, p.artist_name
+      ORDER BY play_count DESC, unique_listeners DESC
+    `).all(campaignId);
+
+    // Add Spotify links and artwork
+    const songsWithLinks = songs.map((song: any) => ({
+      ...song,
+      spotify_url: song.spotify_track_id ? `https://open.spotify.com/track/${song.spotify_track_id}` : null,
+      artwork_url: song.spotify_track_id ? `https://via.placeholder.com/50x50/1db954/ffffff?text=🎵` : null
+    }));
+
+    res.json({ 
+      songs: songsWithLinks,
+      playlist_id: campaign.spotify_playlist_id,
+      playlist_url: campaign.destination_url,
+      total_songs_from_playlist: songsWithLinks.length
+    });
+  } catch (error) {
+    console.error('Error fetching campaign songs:', error);
+    res.status(500).json({ error: 'Failed to fetch campaign songs' });
+  }
+});
+
+// Get playlist-specific songs summary across all campaigns
+router.get('/songs-summary', async (req, res) => {
+  try {
+    const summary = db.prepare(`
+      SELECT 
+        c.id as campaign_id,
+        c.name as campaign_name,
+        c.spotify_playlist_id,
+        c.destination_url,
+        COUNT(DISTINCT p.spotify_track_id) as unique_songs_from_playlist,
+        COUNT(p.id) as total_plays_from_playlist,
+        COUNT(DISTINCT p.user_id) as unique_listeners,
+        COUNT(DISTINCT a.click_id) as unique_clicks_attributed
+      FROM campaigns c
+      LEFT JOIN attributions a ON c.id = a.campaign_id
+      LEFT JOIN plays p ON a.play_id = p.id
+      WHERE c.expires_at > datetime('now') AND c.spotify_playlist_id IS NOT NULL
+      GROUP BY c.id, c.name, c.spotify_playlist_id, c.destination_url
+      ORDER BY total_plays_from_playlist DESC
+    `).all();
+
+    res.json({ 
+      campaigns: summary,
+      message: 'Songs played from specific playlists after clicking tracking links'
+    });
+  } catch (error) {
+    console.error('Error fetching songs summary:', error);
+    res.status(500).json({ error: 'Failed to fetch songs summary' });
+  }
+});
+
+// Get recent plays with campaign attribution (keeping for backward compatibility)
 router.get('/recent-plays', async (req, res) => {
   try {
     const plays = db.prepare(`
