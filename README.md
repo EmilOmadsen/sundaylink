@@ -1,6 +1,16 @@
-# SoundLink Lite
+# Sunday Link
 
-A Node.js + TypeScript backend with Express and SQLite for creating smart tracking links and campaigns.
+A smart link platform for music artists to track Spotify playlist performance and attribution. Built with Node.js, TypeScript, Express, and SQLite.
+
+## 🎵 Features
+
+- **Smart Link Generation**: Create trackable links for Spotify playlists, tracks, and artists
+- **Campaign Management**: Organize and manage multiple campaigns with pause/resume functionality
+- **Real-time Analytics**: Track clicks, streams, unique listeners, and follower growth
+- **Spotify Integration**: Automatic data fetching from Spotify API
+- **Attribution Tracking**: Link clicks to actual Spotify plays
+- **Advanced Analytics**: Comprehensive dashboards with charts and insights
+- **User Authentication**: Secure JWT-based authentication system
 
 ## 🚀 Quick Start
 

@@ -117,7 +117,7 @@ router.get('/login', (req, res) => {
                     <label for="loginPassword">Password</label>
                     <input type="password" id="loginPassword" name="password" required>
                 </div>
-                <input type="hidden" name="click_id" value="\${clickId || ''}">
+                <input type="hidden" name="click_id" value="${clickId || ''}">
                 <button type="submit" class="btn">Login</button>
             </form>
 
@@ -135,7 +135,7 @@ router.get('/login', (req, res) => {
                     <label for="displayName">Display Name (Optional)</label>
                     <input type="text" id="displayName" name="display_name">
                 </div>
-                <input type="hidden" name="click_id" value="\${clickId || ''}">
+                <input type="hidden" name="click_id" value="${clickId || ''}">
                 <button type="submit" class="btn">Create Account</button>
             </form>
 
@@ -283,7 +283,7 @@ router.get('/register', (req, res) => {
                     <label for="displayName">Display Name (Optional)</label>
                     <input type="text" id="displayName" name="display_name">
                 </div>
-                <input type="hidden" name="click_id" value="\${clickId || ''}">
+                <input type="hidden" name="click_id" value="${clickId || ''}">
                 <button type="submit" class="btn">Create Account</button>
             </form>
 
@@ -368,8 +368,8 @@ router.post('/login', async (req, res) => {
       <body>
           <div class="container">
               <h1>✅ Welcome back!</h1>
-              <p>Hi \${user.display_name || user.email}, you've successfully logged in.</p>
-              \${!user.is_spotify_connected ? 
+              <p>Hi ${user.display_name || user.email}, you've successfully logged in.</p>
+              ${!user.is_spotify_connected ? 
                 '<p><a href="/auth/spotify" class="btn">Connect Spotify</a></p>' : 
                 '<p>✅ Spotify Connected</p>'
               }
@@ -458,7 +458,7 @@ router.post('/register', async (req, res) => {
       <body>
           <div class="container">
               <h1>🎉 Welcome to Sundaylink!</h1>
-              <p>Hi \${user.display_name || user.email}, your account has been created successfully.</p>
+              <p>Hi ${user.display_name || user.email}, your account has been created successfully.</p>
               <p>Connect your Spotify account to start tracking your music.</p>
               <p><a href="/auth/spotify" class="btn">Connect Spotify</a></p>
               <p><a href="/dashboard" class="btn">View Dashboard</a></p>

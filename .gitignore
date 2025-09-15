@@ -16,7 +16,18 @@ db/*.db-wal
 .idea/
 *.swp
 *.swo
+.cursor/
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+cookies.txt
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock

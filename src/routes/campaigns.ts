@@ -91,16 +91,28 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// Update campaign status
-router.patch('/:id/status', (req, res) => {
+// Update campaign status (requires authentication)
+router.patch('/:id/status', (req, res, next) => authService.authenticate(req, res, next), (req, res) => {
   try {
     const { status } = req.body;
+    const campaignId = req.params.id;
+    const userId = (req as any).user.id;
     
     if (!status || !['active', 'paused', 'archived'].includes(status)) {
       return res.status(400).json({ error: 'Valid status is required (active, paused, archived)' });
     }
 
-    const updated = campaignService.updateStatus(req.params.id, status);
+    // Check if campaign exists and belongs to the user
+    const campaign = campaignService.getById(campaignId);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    if (campaign.user_id !== userId) {
+      return res.status(403).json({ error: 'You can only modify your own campaigns' });
+    }
+
+    const updated = campaignService.updateStatus(campaignId, status);
     
     if (!updated) {
       return res.status(404).json({ error: 'Campaign not found' });
@@ -113,10 +125,23 @@ router.patch('/:id/status', (req, res) => {
   }
 });
 
-// Delete campaign
-router.delete('/:id', (req, res) => {
+// Delete campaign (requires authentication)
+router.delete('/:id', (req, res, next) => authService.authenticate(req, res, next), (req, res) => {
   try {
-    const deleted = campaignService.delete(req.params.id);
+    const campaignId = req.params.id;
+    const userId = (req as any).user.id;
+    
+    // Check if campaign exists and belongs to the user
+    const campaign = campaignService.getById(campaignId);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    if (campaign.user_id !== userId) {
+      return res.status(403).json({ error: 'You can only delete your own campaigns' });
+    }
+
+    const deleted = campaignService.delete(campaignId);
     
     if (!deleted) {
       return res.status(404).json({ error: 'Campaign not found' });

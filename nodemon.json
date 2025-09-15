@@ -1,6 +1,22 @@
 {
   "watch": ["src"],
-  "ext": "ts,json",
-  "ignore": ["src/**/*.spec.ts"],
-  "exec": "ts-node src/index.ts"
+  "ext": "ts,tsx,js,json",
+  "ignore": [
+    ".git",
+    "node_modules",
+    "dist",
+    "**/*.tmp",
+    "**/*.temp",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    ".cursor",
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts"
+  ],
+  "exec": "ts-node --transpile-only src/index.ts",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000,
+  "verbose": true
 }

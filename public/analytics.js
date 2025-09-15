@@ -49,14 +49,213 @@ function tinySparkConfig(data, color){
 }
 
 function lineChartConfig(labels, streams, listeners, clicks){
+  // Calculate max values for better scaling
+  const maxStreams = Math.max(...streams, 1);
+  const maxListeners = Math.max(...listeners, 1);
+  const maxClicks = Math.max(...clicks, 1);
+  
   return {
     type:'line',
-    data:{ labels, datasets:[
-      { label:'Streams', data:streams, borderColor:'#7c3aed', backgroundColor:'rgba(124,58,237,0.1)', tension:0.3, fill:true },
-      { label:'Listeners', data:listeners, borderColor:'#059669', backgroundColor:'rgba(5,150,105,0.1)', tension:0.3, fill:true },
-      { label:'Clicks', data:clicks, borderColor:'#2563eb', borderDash:[4,4], tension:0.3, fill:false }
-    ]},
-    options:{ responsive:true, plugins:{ tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt.format(ctx.parsed.y)}` } } } }
+    data:{ 
+      labels, 
+      datasets:[
+        { 
+          label:'Streams', 
+          data:streams, 
+          borderColor:'#7c3aed', 
+          backgroundColor:'rgba(124,58,237,0.15)', 
+          tension:0.4, 
+          fill:true,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          borderWidth: 2.5,
+          yAxisID: 'y'
+        },
+        { 
+          label:'Listeners', 
+          data:listeners, 
+          borderColor:'#059669', 
+          backgroundColor:'rgba(5,150,105,0.15)', 
+          tension:0.4, 
+          fill:true,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          borderWidth: 2.5,
+          yAxisID: 'y'
+        },
+        { 
+          label:'Clicks', 
+          data:clicks, 
+          borderColor:'#2563eb', 
+          borderDash:[6,4], 
+          tension:0.4, 
+          fill:false,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          borderWidth: 2.5,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options:{ 
+      responsive:true, 
+      maintainAspectRatio: false,
+      interaction: {
+        intersect: false,
+        mode: 'index'
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: {
+            display: true,
+            color: 'rgba(0,0,0,0.05)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#6b7280',
+            font: {
+              size: 11
+            },
+            maxRotation: 0,
+            callback: function(value, index) {
+              const date = new Date(labels[index]);
+              return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+          }
+        },
+        y: {
+          type: 'linear',
+          display: true,
+          position: 'left',
+          grid: {
+            display: true,
+            color: 'rgba(0,0,0,0.05)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#6b7280',
+            font: {
+              size: 11
+            },
+            callback: function(value) {
+              if (value >= 1000) {
+                return (value / 1000).toFixed(1) + 'k';
+              }
+              return value;
+            }
+          },
+          beginAtZero: true,
+          max: Math.ceil(maxStreams * 1.2)
+        },
+        y1: {
+          type: 'linear',
+          display: true,
+          position: 'right',
+          grid: {
+            drawOnChartArea: false,
+            drawBorder: false
+          },
+          ticks: {
+            color: '#6b7280',
+            font: {
+              size: 11
+            },
+            callback: function(value) {
+              if (value >= 1000) {
+                return (value / 1000).toFixed(1) + 'k';
+              }
+              return value;
+            }
+          },
+          beginAtZero: true,
+          max: Math.ceil(maxClicks * 1.2)
+        }
+      },
+      plugins:{ 
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          onClick: function(e, legendItem, legend) {
+            const index = legendItem.datasetIndex;
+            const chart = legend.chart;
+            const meta = chart.getDatasetMeta(index);
+            
+            // Toggle visibility
+            meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+            
+            // Update chart
+            chart.update('active');
+            
+            // Add visual feedback
+            const legendElement = e.target.closest('.chartjs-legend-item');
+            if (legendElement) {
+              legendElement.style.transform = 'scale(0.95)';
+              setTimeout(() => {
+                legendElement.style.transform = 'scale(1)';
+              }, 150);
+            }
+          },
+          labels: {
+            usePointStyle: true,
+            pointStyle: 'line',
+            padding: 20,
+            font: {
+              size: 12,
+              weight: '500'
+            },
+            color: '#374151',
+            generateLabels: function(chart) {
+              const datasets = chart.data.datasets;
+              return datasets.map((dataset, i) => {
+                const total = dataset.data.reduce((sum, val) => sum + val, 0);
+                const meta = chart.getDatasetMeta(i);
+                const isHidden = meta.hidden;
+                
+                return {
+                  text: `${dataset.label}: ${fmt.format(total)}`,
+                  fillStyle: dataset.borderColor,
+                  strokeStyle: dataset.borderColor,
+                  lineWidth: 2,
+                  pointStyle: dataset.borderDash ? 'line' : 'line',
+                  hidden: false,
+                  datasetIndex: i,
+                  // Add visual indicator for hidden state
+                  fontColor: isHidden ? '#9ca3af' : '#374151',
+                  fontStyle: isHidden ? 'italic' : 'normal'
+                };
+              });
+            }
+          }
+        },
+        tooltip: { 
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          cornerRadius: 8,
+          displayColors: true,
+          callbacks:{ 
+            label:(ctx)=> {
+              const value = ctx.parsed.y;
+              const formatted = value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value.toString();
+              return `${ctx.dataset.label}: ${formatted}`;
+            },
+            title: (ctx) => {
+              const date = new Date(ctx[0].label);
+              return date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric'
+              });
+            }
+          } 
+        } 
+      } 
+    }
   };
 }
 

@@ -21,6 +21,7 @@ router.get('/', (req, res) => {
       }
     }
   }
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -36,7 +37,7 @@ router.get('/', (req, res) => {
             }
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: #f5f7fa;
+                background: white;
                 color: #333;
                 line-height: 1.6;
             }
@@ -48,39 +49,66 @@ router.get('/', (req, res) => {
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
             .container {
-                max-width: 1200px;
+                max-width: 1400px;
                 margin: 0 auto;
-                padding: 20px;
+                padding: 40px;
+                background: white;
+                min-height: 100vh;
             }
             .stats-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 20px;
-                margin-bottom: 30px;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 24px;
+                margin-bottom: 40px;
             }
             .stat-card {
                 background: white;
-                padding: 20px;
-                border-radius: 12px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-                border-left: 4px solid #667eea;
+                padding: 24px;
+                border-radius: 16px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                border: 1px solid #f1f5f9;
+                transition: all 0.3s ease;
+                position: relative;
+                overflow: hidden;
+            }
+            .stat-card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+            }
+            .stat-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             }
             .stat-value {
-                font-size: 24px;
-                font-weight: bold;
-                color: #667eea;
-                margin-bottom: 5px;
+                font-size: 32px;
+                font-weight: 700;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 8px;
+                line-height: 1;
             }
             .stat-label {
+                color: #64748b;
                 font-size: 14px;
-                color: #666;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
             }
             .campaigns-section {
                 background: white;
-                padding: 20px;
-                border-radius: 12px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-                margin-bottom: 30px;
+                padding: 0;
+                border-radius: 20px;
+                box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -2px rgba(0, 0, 0, 0.05);
+                margin-bottom: 50px;
+                border: 1px solid #f1f5f9;
+                overflow: hidden;
             }
             .modal-overlay { 
                 position: fixed; inset: 0; background: rgba(0,0,0,0.5); 
@@ -93,83 +121,230 @@ router.get('/', (req, res) => {
             .modal-body { padding: 16px 20px; }
             .close-btn { background:#eee; border:none; border-radius:6px; padding:8px 10px; cursor:pointer; }
             .section-title {
-                font-size: 20px;
-                font-weight: bold;
-                margin-bottom: 20px;
-                color: #333;
+                font-size: 28px;
+                font-weight: 700;
+                margin-bottom: 32px;
+                color: #1e293b;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                padding: 40px 40px 0 40px;
             }
             .campaigns-table {
                 width: 100%;
                 border-collapse: collapse;
+                background: white;
+                border-radius: 0;
+                overflow: hidden;
+                box-shadow: none;
+                margin-top: 0;
+                table-layout: fixed;
             }
             .campaigns-table th,
             .campaigns-table td {
                 text-align: left;
-                padding: 12px;
-                border-bottom: 1px solid #eee;
+                padding: 16px 12px;
+                border-bottom: 1px solid #f1f5f9;
+                vertical-align: top;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+            .campaigns-table th:nth-child(1),
+            .campaigns-table td:nth-child(1) {
+                width: 25%;
+                padding-right: 16px;
+            }
+            .campaigns-table td:nth-child(1) strong {
+                display: block;
+                margin-bottom: 4px;
+            }
+            .campaigns-table td:nth-child(1) small {
+                display: block;
+                color: #64748b;
+                font-size: 11px;
+                line-height: 1.3;
+                word-break: break-all;
+            }
+            .campaigns-table th:nth-child(2),
+            .campaigns-table td:nth-child(2) {
+                width: 8%;
+            }
+            .campaigns-table th:nth-child(3),
+            .campaigns-table td:nth-child(3) {
+                width: 20%;
+            }
+            .campaigns-table th:nth-child(4),
+            .campaigns-table td:nth-child(4),
+            .campaigns-table th:nth-child(5),
+            .campaigns-table td:nth-child(5),
+            .campaigns-table th:nth-child(6),
+            .campaigns-table td:nth-child(6),
+            .campaigns-table th:nth-child(7),
+            .campaigns-table td:nth-child(7) {
+                width: 7%;
+            }
+            
+            .campaigns-table th:nth-child(9),
+            .campaigns-table td:nth-child(9) {
+                width: 10%;
+                min-width: 120px;
+                white-space: nowrap;
+            }
+            .campaigns-table th:nth-child(10),
+            .campaigns-table td:nth-child(10) {
+                width: 8%;
+            }
+            .campaigns-table th:nth-child(11),
+            .campaigns-table td:nth-child(11) {
+                width: 15%;
             }
             .campaigns-table th {
-                background: #f8f9fa;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
                 font-weight: 600;
-                color: #555;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            /* FORCE S/L column to be exactly like other columns - AFTER general rules */
+            .campaigns-table th:nth-child(8),
+            .campaigns-table td:nth-child(8) {
+                width: 7% !important;
+                font-size: 13px !important;
+                line-height: 1.5 !important;
+                padding: 16px 12px !important;
+                vertical-align: top !important;
+                text-align: center !important;
+            }
+            
+            /* FORCE S/L header to match other headers - AFTER general rules */
+            .campaigns-table th:nth-child(8) {
+                font-weight: 600 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.5px !important;
+                background: linear-gradient(135deg, #667eea, #764ba2) !important;
+                color: white !important;
+            }
+            .campaigns-table tbody tr {
+                height: 85px;
+            }
+            .campaigns-table tbody tr:hover {
+                background: #f8fafc;
+                transition: background 0.2s ease;
+            }
+            .campaigns-table tbody tr:last-child td {
+                border-bottom: none;
             }
             .status-badge {
                 display: inline-block;
-                padding: 4px 8px;
-                border-radius: 4px;
+                padding: 6px 12px;
+                border-radius: 20px;
                 font-size: 12px;
-                font-weight: 500;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
             }
             .status-active {
-                background: #d4edda;
-                color: #155724;
+                background: linear-gradient(135deg, #10b981, #059669);
+                color: white;
+                box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
             }
             .status-paused {
-                background: #fff3cd;
-                color: #856404;
+                background: linear-gradient(135deg, #f59e0b, #d97706);
+                color: white;
+                box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
             }
             .btn {
-                background: #667eea;
+                background: linear-gradient(135deg, #667eea, #764ba2);
                 color: white;
-                padding: 10px 15px;
+                padding: 12px 20px;
                 border: none;
-                border-radius: 6px;
+                border-radius: 8px;
                 font-size: 14px;
+                font-weight: 600;
                 cursor: pointer;
                 text-decoration: none;
                 display: inline-block;
                 margin: 5px;
-                transition: background 0.2s;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             }
             .btn:hover {
-                background: #5a6fd8;
+                transform: translateY(-2px);
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             }
             .btn-small {
-                padding: 5px 10px;
-                font-size: 12px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: 500;
+                margin: 2px 3px 2px 0;
+                display: block;
+                width: fit-content;
             }
             .btn-danger {
-                background: #dc2626;
+                background: linear-gradient(135deg, #ef4444, #dc2626);
                 color: white;
             }
             .btn-danger:hover {
-                background: #b91c1c;
+                background: linear-gradient(135deg, #dc2626, #b91c1c);
+            }
+            .btn-secondary {
+                background: linear-gradient(135deg, #6b7280, #4b5563);
+                color: white;
+            }
+            .btn-secondary:hover {
+                background: linear-gradient(135deg, #4b5563, #374151);
             }
             .loading {
                 text-align: center;
                 color: #666;
                 font-style: italic;
+                padding: 32px;
             }
             .actions {
-                margin-bottom: 20px;
+                margin-bottom: 32px;
                 text-align: center;
+                padding: 24px;
+                background: white;
+                border-radius: 16px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                border: 1px solid #f1f5f9;
             }
             .smart-link {
-                font-family: monospace;
-                background: #f1f3f4;
-                padding: 2px 4px;
-                border-radius: 3px;
-                font-size: 12px;
+                font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+                background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-size: 11px;
+                border: 1px solid #e2e8f0;
+                display: block;
+                margin: 6px 0;
+                transition: all 0.2s ease;
+                line-height: 1.4;
+                word-break: break-all;
+            }
+            .smart-link:hover {
+                background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+                transform: translateY(-1px);
+            }
+            .copy-btn {
+                background: linear-gradient(135deg, #3b82f6, #2563eb);
+                color: white;
+                border: none;
+                padding: 6px 10px;
+                border-radius: 6px;
+                font-size: 10px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-top: 4px;
+                transition: all 0.2s ease;
+                display: block;
+            }
+            .copy-btn:hover {
+                background: linear-gradient(135deg, #2563eb, #1d4ed8);
+                transform: scale(1.05);
             }
             .success-banner {
                 background: #d4edda;
@@ -200,9 +375,9 @@ router.get('/', (req, res) => {
             
             <div class="spotify-status">
                 <div class="stat-card">
-                    <div class="stat-value">\${spotifyConnected ? '✅ Connected' : '❌ Not Connected'}</div>
+                    <div class="stat-value">${spotifyConnected ? '✅ Connected' : '❌ Not Connected'}</div>
                     <div class="stat-label">Spotify Connection</div>
-                    \${!spotifyConnected ? '<a href="/auth/spotify" class="btn btn-small">Connect Spotify</a>' : ''}
+                    ${!spotifyConnected ? '<a href="/auth/spotify" class="btn btn-small">Connect Spotify</a>' : ''}
                 </div>
             </div>
             
@@ -210,7 +385,7 @@ router.get('/', (req, res) => {
                 <a href="/create-campaign" class="btn">+ New Campaign</a>
                 <button onclick="refreshData()" class="btn">🔄 Refresh</button>
                 <button onclick="runPolling()" class="btn">📊 Sync Data</button>
-                <a href="/analytics.html" target="_blank" class="btn btn-small" aria-label="Open analytics page">📈 Advanced Analytics</a>
+                <a href="/advanced-analytics" class="btn btn-small" aria-label="Open analytics page">📈 Advanced Analytics</a>
             </div>
 
             <div id="stats" class="stats-grid">
@@ -248,6 +423,7 @@ router.get('/', (req, res) => {
                             <th>Clicks</th>
                             <th>Streams</th>
                             <th>Unique Songs</th>
+                            <th>Unique Listener</th>
                             <th>S/L</th>
                             <th>Followers Δ</th>
                             <th>Created</th>
@@ -259,31 +435,8 @@ router.get('/', (req, res) => {
                 </table>
             </div>
 
-            <div class="campaigns-section" id="songAnalyticsSection" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h2 class="section-title" id="songAnalyticsTitle">Song Analytics</h2>
-                    <button onclick="hideSongAnalytics()" class="btn btn-small">✕ Close</button>
-                </div>
-                <div id="song-analytics-content" class="loading">Loading song analytics...</div>
-            </div>
 
-            <div class="campaigns-section" id="analyticsSection">
-                <h2 class="section-title">Analytics</h2>
-                <div class="loading" id="chart-hint">Select a campaign and click View to see charts</div>
-                <div style="text-align:center; margin-bottom:10px;">
-                    <button class="btn btn-small" onclick="setRange(1)">24h</button>
-                    <button class="btn btn-small" onclick="setRange(7)">7d</button>
-                    <button class="btn btn-small" onclick="setRange(14)">14d</button>
-                    <button class="btn btn-small" onclick="setRange(30)">30d</button>
-                    <button class="btn btn-small" onclick="setRange(60)">60d</button>
-                    <button class="btn btn-small" onclick="setRange(180)">6m</button>
-                    <button class="btn btn-small" onclick="setRange(365)">1y</button>
-                </div>
-                <canvas id="clicksChart" width="800" height="120" style="width: 100%; max-width: 800px;"></canvas>
-                <canvas id="streamsChart" width="800" height="120" style="width: 100%; max-width: 800px; margin-top:20px;"></canvas>
-            </div>
             
-            <!-- Modal removed per request: analytics stays inline only -->
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -348,18 +501,18 @@ router.get('/', (req, res) => {
                         '</td>' +
                         '<td>' +
                         '<div class="smart-link">' + smartLink + '</div>' +
-                        '<button onclick="copyToClipboard(\'' + smartLink + '\')" class="btn btn-small">Copy</button>' +
+                        '<button onclick="copyToClipboard(\"' + smartLink + '\")" class="copy-btn">Copy</button>' +
                         '</td>' +
                         '<td>' + campaign.metrics.clicks + '</td>' +
                         '<td>' + campaign.metrics.streams + '</td>' +
                         '<td>' + (campaign.metrics.unique_songs || 0) + '</td>' +
+                        '<td>' + (campaign.metrics.listeners || 0) + '</td>' +
                         '<td>' + campaign.metrics.streams_per_listener.toFixed(1) + '</td>' +
                         '<td>' + (campaign.metrics.followers_delta > 0 ? '+' : '') + campaign.metrics.followers_delta + '</td>' +
                         '<td>' + createdDate + '</td>' +
                         '<td>' +
-                        '<button onclick="viewCampaign(\'' + campaign.id + '\')" class="btn btn-small">View</button>' +
-                        '<button onclick="pauseCampaign(\'' + campaign.id + '\')" class="btn btn-small">Pause</button>' +
-                        '<button onclick="deleteCampaign(\'' + campaign.id + '\')" class="btn btn-small btn-danger">Delete</button>' +
+                        '<button onclick="toggleCampaign(\\'' + campaign.id + '\\')" class="btn btn-small btn-secondary">' + (campaign.status === 'active' ? 'Pause' : 'Resume') + '</button>' +
+                        '<button onclick="deleteCampaign(\\'' + campaign.id + '\\')" class="btn btn-small btn-danger">Delete</button>' +
                         '</td>';
                     
                     tbody.appendChild(row);
@@ -403,369 +556,92 @@ router.get('/', (req, res) => {
                 });
             }
 
-            function viewCampaign(campaignId) {
-                console.log('viewCampaign called with ID:', campaignId);
-                
-                // Hide the hint message
-                document.getElementById('chart-hint').style.display = 'none';
-                
-                // Show loading message
-                const analyticsSection = document.getElementById('analyticsSection');
-                const loadingDiv = document.createElement('div');
-                loadingDiv.id = 'chart-loading';
-                loadingDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Loading charts...</div>';
-                analyticsSection.appendChild(loadingDiv);
-                
-                // Load charts
-                loadCharts(campaignId).then(() => {
-                    console.log('Charts loaded successfully');
-                    // Remove loading message
-                    const loadingEl = document.getElementById('chart-loading');
-                    if (loadingEl) loadingEl.remove();
-                    
-                    // Scroll to analytics section
-                    if (analyticsSection && analyticsSection.scrollIntoView) {
-                        analyticsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                }).catch(error => {
-                    console.error('Error in viewCampaign:', error);
-                    // Remove loading message
-                    const loadingEl = document.getElementById('chart-loading');
-                    if (loadingEl) loadingEl.remove();
-                    
-                    // Show error message
-                    const errorDiv = document.createElement('div');
-                    errorDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error loading charts. Please try again.</div>';
-                    analyticsSection.appendChild(errorDiv);
-                });
-            }
-
-            let clicksChart, streamsChart, analyticsRangeDays = 30;
-            function setRange(days){ analyticsRangeDays = days; if(window._currentCampaignId){ loadCharts(window._currentCampaignId); } }
-            async function loadCharts(campaignId) {
+            async function toggleCampaign(campaignId) {
                 try {
-                    console.log('Loading charts for campaign:', campaignId);
-                    window._currentCampaignId = campaignId;
-                    
-                    // Fetch data
-                    const res = await fetch('/api/metrics/campaigns/' + campaignId + '/timeseries?days=' + analyticsRangeDays);
-                    if (!res.ok) {
-                        throw new Error('Failed to fetch chart data: ' + res.status);
-                    }
-                    const data = await res.json();
-                    console.log('Chart data received:', data);
-                    
-                    // Process data
-                    const labels = Array.from(new Set([
-                        ...data.clicksByDay.map(d => d.day),
-                        ...data.streamsByDay.map(d => d.day)
-                    ])).sort();
-
-                    const clicksMap = Object.fromEntries(data.clicksByDay.map(d => [d.day, d.clicks]));
-                    const streamsMap = Object.fromEntries(data.streamsByDay.map(d => [d.day, d.streams]));
-                    const clicks = labels.map(l => clicksMap[l] || 0);
-                    const streams = labels.map(l => streamsMap[l] || 0);
-
-                    console.log('Chart labels:', labels);
-                    console.log('Chart clicks data:', clicks);
-                    console.log('Chart streams data:', streams);
-
-                    // Get canvas elements
-                    const ctx1 = document.getElementById('clicksChart');
-                    const ctx2 = document.getElementById('streamsChart');
-                    
-                    if (!ctx1 || !ctx2) {
-                        throw new Error('Canvas elements not found');
-                    }
-                    
-                    console.log('Canvas elements found:', { ctx1: !!ctx1, ctx2: !!ctx2 });
-
-                    // Destroy existing charts
-                    if (clicksChart) {
-                        clicksChart.destroy();
-                        clicksChart = null;
-                    }
-                    if (streamsChart) {
-                        streamsChart.destroy();
-                        streamsChart = null;
-                    }
-
-                    // Check if Chart.js is available, if not create simple HTML charts
-                    if (typeof Chart === 'undefined') {
-                        console.log('Chart.js not available, creating simple HTML charts');
-                        createSimpleCharts(labels, clicks, streams);
+                    const campaign = campaignsData.find(c => c.id === campaignId);
+                    if (!campaign) {
+                        alert('Campaign not found');
                         return;
                     }
 
-                    // Create charts
-                    console.log('Creating clicks chart...');
-                    clicksChart = new Chart(ctx1, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: 'Clicks (last ' + analyticsRangeDays + ' days)',
-                                data: clicks,
-                                borderColor: '#667eea',
-                                backgroundColor: 'rgba(102,126,234,0.15)',
-                                tension: 0.25,
-                                fill: true,
-                                pointRadius: 4,
-                                pointHoverRadius: 6
-                            }]
-                        },
-                        options: { 
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: { 
-                                y: { 
-                                    beginAtZero: true,
-                                    ticks: {
-                                        stepSize: 1
-                                    }
-                                } 
-                            },
-                            plugins: {
-                                legend: {
-                                    display: true,
-                                    position: 'top'
-                                }
-                            }
-                        }
-                    });
-                    console.log('Clicks chart created successfully');
-
-                    console.log('Creating streams chart...');
-                    streamsChart = new Chart(ctx2, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: 'Streams (last ' + analyticsRangeDays + ' days)',
-                                data: streams,
-                                borderColor: '#22c55e',
-                                backgroundColor: 'rgba(34,197,94,0.15)',
-                                tension: 0.25,
-                                fill: true,
-                                pointRadius: 4,
-                                pointHoverRadius: 6
-                            }]
-                        },
-                        options: { 
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: { 
-                                y: { 
-                                    beginAtZero: true,
-                                    ticks: {
-                                        stepSize: 1
-                                    }
-                                } 
-                            },
-                            plugins: {
-                                legend: {
-                                    display: true,
-                                    position: 'top'
-                                }
-                            }
-                        }
-                    });
-                    console.log('Streams chart created successfully');
+                    const newStatus = campaign.status === 'active' ? 'paused' : 'active';
+                    const action = newStatus === 'active' ? 'resume' : 'pause';
                     
-                } catch (e) {
-                    console.error('Failed to load charts:', e);
-                    throw e; // Re-throw to be caught by viewCampaign
-                }
-            }
-
-            // Simple HTML charts as fallback
-            function createSimpleCharts(labels: string[], clicks: number[], streams: number[]) {
-                const ctx1 = document.getElementById('clicksChart');
-                const ctx2 = document.getElementById('streamsChart');
-                
-                if (!ctx1 || !ctx2) return;
-                
-                // Create simple bar chart for clicks
-                let clicksHtml = '';
-                for (let i = 0; i < labels.length; i++) {
-                    const height = Math.max(20, (clicks[i] / Math.max(...clicks)) * 80);
-                    clicksHtml += '<div style="display: flex; flex-direction: column; align-items: center; flex: 1;">';
-                    clicksHtml += '<div style="background: #667eea; width: 100%; height: ' + height + 'px; border-radius: 4px 4px 0 0; margin-bottom: 5px;"></div>';
-                    clicksHtml += '<div style="font-size: 12px; color: #666;">' + clicks[i] + '</div>';
-                    clicksHtml += '<div style="font-size: 10px; color: #999;">' + labels[i] + '</div>';
-                    clicksHtml += '</div>';
-                }
-                
-                ctx1.innerHTML = '<div style="padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">' +
-                    '<h3 style="margin: 0 0 15px 0; color: #667eea;">Clicks (last ' + analyticsRangeDays + ' days)</h3>' +
-                    '<div style="display: flex; align-items: end; gap: 10px; height: 100px;">' +
-                    clicksHtml +
-                    '</div></div>';
-                
-                // Create simple bar chart for streams
-                let streamsHtml = '';
-                for (let i = 0; i < labels.length; i++) {
-                    const height = Math.max(20, (streams[i] / Math.max(...streams)) * 80);
-                    streamsHtml += '<div style="display: flex; flex-direction: column; align-items: center; flex: 1;">';
-                    streamsHtml += '<div style="background: #22c55e; width: 100%; height: ' + height + 'px; border-radius: 4px 4px 0 0; margin-bottom: 5px;"></div>';
-                    streamsHtml += '<div style="font-size: 12px; color: #666;">' + streams[i] + '</div>';
-                    streamsHtml += '<div style="font-size: 10px; color: #999;">' + labels[i] + '</div>';
-                    streamsHtml += '</div>';
-                }
-                
-                ctx2.innerHTML = '<div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">' +
-                    '<h3 style="margin: 0 0 15px 0; color: #22c55e;">Streams (last ' + analyticsRangeDays + ' days)</h3>' +
-                    '<div style="display: flex; align-items: end; gap: 10px; height: 100px;">' +
-                    streamsHtml +
-                    '</div></div>';
-            }
-
-            // Modal logic removed
-
-            function pauseCampaign(campaignId) {
-                if (!confirm('Pause this campaign?')) return;
-                
-                fetch('/api/campaigns/' + campaignId + '/status', {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ status: 'paused' })
-                })
-                .then(() => {
-                    refreshData();
-                })
-                .catch(error => {
-                    console.error('Error pausing campaign:', error);
-                    alert('Error pausing campaign');
-                });
-            }
-
-            function deleteCampaign(campaignId) {
-                if (!confirm('Are you sure you want to delete this campaign? This action cannot be undone and will permanently remove all tracking data.')) return;
-                
-                fetch('/api/campaigns/' + campaignId, {
-                    method: 'DELETE'
-                })
-                .then(response => {
-                    if (response.ok) {
-                        refreshData();
-                        alert('Campaign deleted successfully');
-                    } else {
-                        return response.json().then(data => {
-                            throw new Error(data.error || 'Failed to delete campaign');
-                        });
+                    if (!confirm('Are you sure you want to ' + action + ' this campaign?')) {
+                        return;
                     }
-                })
-                .catch(error => {
+
+                    const response = await fetch('/api/campaigns/' + campaignId + '/status', {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to update campaign status');
+                    }
+
+                    // Update the campaign status in our local data
+                    campaign.status = newStatus;
+                    
+                    // Re-render the table to update the button text and status badge
+                    renderCampaignsTable();
+                    
+                    alert('Campaign ' + action + 'd successfully!');
+                } catch (error) {
+                    console.error('Error toggling campaign:', error);
+                    alert('Error updating campaign status');
+                }
+            }
+
+            async function deleteCampaign(campaignId) {
+                try {
+                    const campaign = campaignsData.find(c => c.id === campaignId);
+                    if (!campaign) {
+                        alert('Campaign not found');
+                        return;
+                    }
+
+                    if (!confirm('Are you sure you want to delete "' + campaign.name + '"? This action cannot be undone.')) {
+                        return;
+                    }
+
+                    const response = await fetch('/api/campaigns/' + campaignId, {
+                        method: 'DELETE'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to delete campaign');
+                    }
+
+                    // Remove the campaign from our local data
+                    campaignsData = campaignsData.filter(c => c.id !== campaignId);
+                    
+                    // Re-render the table
+                    renderCampaignsTable();
+                    
+                    // Update the total campaigns count
+                    document.getElementById('total-campaigns').textContent = campaignsData.length;
+                    
+                    alert('Campaign deleted successfully!');
+                } catch (error) {
                     console.error('Error deleting campaign:', error);
-                    alert('Error deleting campaign: ' + (error instanceof Error ? error.message : error));
-                });
+                    alert('Error deleting campaign');
+                }
             }
 
             function refreshData() {
-                document.getElementById('campaigns-loading').style.display = 'block';
-                document.getElementById('campaigns-table').style.display = 'none';
                 loadDashboard();
             }
 
-            function runPolling() {
-                if (!confirm('Manually sync data from Spotify? This may take a few minutes.')) return;
-                
-                fetch('/api/metrics/admin/poll', { method: 'POST' })
-                .then(() => fetch('/api/metrics/admin/attribute', { method: 'POST' }))
-                .then(() => fetch('/api/metrics/admin/followers', { method: 'POST' }))
-                .then(() => {
-                    alert('Data sync completed!');
-                    refreshData();
-                })
-                .catch(error => {
-                    console.error('Error syncing data:', error);
-                    alert('Error syncing data');
-                });
-            }
-
-
-            // Show song analytics for a specific campaign
-            async function showSongAnalytics(campaignId, campaignName) {
-                const section = document.getElementById('songAnalyticsSection');
-                const title = document.getElementById('songAnalyticsTitle');
-                const content = document.getElementById('song-analytics-content');
-                
-                title.textContent = 'Song Analytics - ' + campaignName;
-                section.style.display = 'block';
-                content.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Loading song analytics...</div>';
-                
-                // Scroll to the analytics section
-                section.scrollIntoView({ behavior: 'smooth' });
-                
-                try {
-                    const response = await fetch('/api/metrics/campaigns/' + campaignId + '/songs');
-                    const data = await response.json();
-                    
-                    if (data.songs && data.songs.length > 0) {
-                        let songsHtml = '<div style="margin-bottom: 15px; font-size: 14px; color: #666;">' +
-                            'Showing ' + data.songs.length + ' songs ranked by play count' +
-                            '</div>';
-                        
-                        data.songs.forEach((song, index) => {
-                            songsHtml += '<div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 12px;">';
-                            songsHtml += '<div style="flex-shrink: 0; text-align: center; min-width: 30px;">';
-                            songsHtml += '<div style="font-weight: bold; color: #1db954; font-size: 16px;">#' + (index + 1) + '</div>';
-                            songsHtml += '</div>';
-                            songsHtml += '<div style="flex-shrink: 0;">';
-                            
-                            if (song.spotify_track_id) {
-                                songsHtml += '<img src="' + song.artwork_url + '" ' +
-                                    'style="width: 50px; height: 50px; border-radius: 4px; object-fit: cover;" ' +
-                                    'onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'block\';" ' +
-                                    'alt="Track artwork">';
-                                songsHtml += '<div style="width: 50px; height: 50px; background: #f0f0f0; border-radius: 4px; display: none; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">🎵</div>';
-                            } else {
-                                songsHtml += '<div style="width: 50px; height: 50px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px;">🎵</div>';
-                            }
-                            
-                            songsHtml += '</div>';
-                            songsHtml += '<div style="flex: 1; min-width: 0;">';
-                            songsHtml += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">';
-                            songsHtml += '<strong style="font-size: 14px; color: #333;">' + song.track_name + '</strong>';
-                            
-                            if (song.spotify_url) {
-                                songsHtml += '<a href="' + song.spotify_url + '" target="_blank" style="color: #1db954; text-decoration: none; font-size: 12px;">🔗</a>';
-                            }
-                            
-                            songsHtml += '</div>';
-                            songsHtml += '<small style="color: #666; font-size: 12px;">' + song.artist_name + '</small>';
-                            songsHtml += '</div>';
-                            songsHtml += '<div style="text-align: right; font-size: 11px; color: #666; flex-shrink: 0;">';
-                            songsHtml += '<div style="font-weight: bold; color: #1db954;">' + song.play_count + ' plays</div>';
-                            songsHtml += '<div>' + song.unique_listeners + ' listeners</div>';
-                            songsHtml += '<div style="font-size: 10px;">Avg: ' + (song.avg_confidence * 100).toFixed(0) + '% confidence</div>';
-                            songsHtml += '</div>';
-                            songsHtml += '</div>';
-                        });
-                        
-                        content.innerHTML = songsHtml;
-                    } else {
-                        content.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No songs found for this campaign yet. Click the tracking link and stream some music!</div>';
-                    }
-                } catch (error) {
-                    console.error('Error loading song analytics:', error);
-                    content.innerHTML = '<div style="text-align: center; color: #d32f2f; padding: 20px;">Error loading song analytics</div>';
-                }
-            }
-
-            // Hide song analytics section
-            function hideSongAnalytics() {
-                document.getElementById('songAnalyticsSection').style.display = 'none';
-            }
-
-
-            // Load dashboard on page load
+            
+            // Initialize dashboard
             loadDashboard();
         </script>
     </body>
-    </html>
+</html>
   `);
 });
 

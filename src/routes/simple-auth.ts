@@ -91,7 +91,7 @@ router.get('/register', (req, res) => {
                     <label for="display_name">Display Name (Optional)</label>
                     <input type="text" id="display_name" name="display_name">
                 </div>
-                <input type="hidden" name="click_id" value="\${clickId || ''}">
+                <input type="hidden" name="click_id" value="${clickId || ''}">
                 <button type="submit" class="btn">Create Account</button>
             </form>
             
@@ -185,7 +185,7 @@ router.get('/login', (req, res) => {
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password" required>
                 </div>
-                <input type="hidden" name="click_id" value="\${clickId || ''}">
+                <input type="hidden" name="click_id" value="${clickId || ''}">
                 <button type="submit" class="btn">Login</button>
             </form>
             

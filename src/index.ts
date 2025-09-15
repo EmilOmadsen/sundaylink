@@ -3,6 +3,23 @@ import dotenv from 'dotenv';
 // MUST load environment variables FIRST before any other imports
 dotenv.config();
 
+// Process guards for better error handling
+process.on('unhandledRejection', (err) => {
+  console.error('🚨 UnhandledRejection:', err);
+  // Don't exit in development, just log the error
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('🚨 UncaughtException:', err);
+  // Don't exit in development, just log the error
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -16,6 +33,7 @@ import simpleAuthRoutes from './routes/simple-auth';
 import metricsRoutes from './routes/metrics';
 import dashboardRoutes from './routes/dashboard';
 import createCampaignRoutes from './routes/create-campaign';
+import advancedAnalyticsRoutes from './routes/advanced-analytics';
 
 // Import services
 import pollingService from './services/polling';
@@ -79,10 +97,13 @@ app.use('/dashboard', dashboardRoutes);
 // Create campaign route
 app.use('/create-campaign', createCampaignRoutes);
 
+// Advanced Analytics route
+app.use('/advanced-analytics', advancedAnalyticsRoutes);
+
 // Click tracking routes (no /api prefix for clean URLs)
 app.use('/', clickRoutes);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Sundaylink server is running on port ${PORT}`);
   console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
   console.log(`🔐 Login: http://localhost:${PORT}/auth/login`);
@@ -93,6 +114,35 @@ app.listen(PORT, () => {
   cleanupService.start();
   
   console.log('✅ All services started successfully!');
+});
+
+// Handle EADDRINUSE gracefully
+server.on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use. Please try a different port or kill the process using this port.`);
+    console.error(`💡 You can run: lsof -ti:${PORT} | xargs kill -9`);
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', err);
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
 
 export default app;

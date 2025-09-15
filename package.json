@@ -1,10 +1,11 @@
 {
-  "name": "sundaylink",
+  "name": "sunday-link",
   "version": "1.0.0",
-  "description": "",
+  "description": "Smart link platform for music artists to track Spotify playlist performance and attribution",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "dev": "concurrently -k -n TYPECHECK,SERVER \"tsc --noEmit --watch\" \"nodemon --config nodemon.json\"",
+    "dev:fast": "concurrently -k -n TYPECHECK,SERVER \"tsc --noEmit --watch\" \"tsx watch src/index.ts\"",
     "build": "tsc",
     "start": "node dist/index.js",
     "migrate": "ts-node src/utils/migrate.ts",
@@ -40,8 +41,10 @@
     "@types/node": "^24.3.1",
     "@types/node-cron": "^3.0.11",
     "@types/uuid": "^10.0.0",
+    "concurrently": "^9.2.1",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
 }
