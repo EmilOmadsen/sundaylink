@@ -22,14 +22,12 @@ export class DatabaseLogger {
     return statement;
   }
 
-  exec(sql: string): Database.RunResult {
+  exec(sql: string): void {
     const startTime = Date.now();
-    const result = this.db.exec(sql);
+    this.db.exec(sql);
     const duration = Date.now() - startTime;
 
-    logger.database(sql, duration, (result as any).changes);
-
-    return result;
+    logger.database(sql, duration);
   }
 
   transaction(fn: () => void): Database.Transaction {
