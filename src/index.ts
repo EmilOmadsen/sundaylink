@@ -33,6 +33,13 @@ if (!process.env.NIXPACKS_NODE_VERSION) {
   process.env.NIXPACKS_NODE_VERSION = '20';
 }
 
+// Railway deployment environment detection
+if (process.env.RAILWAY_ENVIRONMENT) {
+  console.log(`🚂 Railway Environment: ${process.env.RAILWAY_ENVIRONMENT}`);
+  console.log(`🔧 Railway Project: ${process.env.RAILWAY_PROJECT_NAME || 'unknown'}`);
+  console.log(`🌍 Railway Service: ${process.env.RAILWAY_SERVICE_NAME || 'unknown'}`);
+}
+
 // Import logger after env is loaded
 import logger from './utils/logger';
 import logManager from './utils/logManager';
@@ -85,10 +92,20 @@ import cleanupService from './services/cleanup';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+// Railway-specific startup delay to ensure all services are ready
+const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.RAILWAY_STARTUP_DELAY) : 0;
+
 // Health check endpoint - Railway compatible (no dependencies, cannot throw)
 // MUST be first route before any middleware
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  // Set explicit headers for Railway compatibility
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.status(200).json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 // Trust proxy for getting real IP addresses
@@ -151,16 +168,21 @@ app.use('/advanced-analytics', advancedAnalyticsRoutes);
 app.use('/', clickRoutes);
 
 const server = app.listen(PORT, "0.0.0.0", () => {
+  // Railway-specific logging
+  console.log(`🚀 Railway Deployment Ready`);
+  console.log(`📡 Server listening on port ${PORT}`);
+  console.log(`🌐 Binding to 0.0.0.0 (all interfaces)`);
+  console.log(`🏥 Health check available at /health`);
+  
   logger.info(`Sunday Link server started successfully`, {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
     nodeVersion: process.version,
     platform: process.platform,
-    host: "0.0.0.0"
+    host: "0.0.0.0",
+    railway: process.env.RAILWAY_ENVIRONMENT || 'local',
+    startupDelay: STARTUP_DELAY
   });
-  
-  // Log the actual port being used
-  console.log(`🚀 Server listening on port ${PORT}`);
   
   logger.info(`Server endpoints available`, {
     dashboard: `http://localhost:${PORT}/dashboard`,
@@ -169,18 +191,32 @@ const server = app.listen(PORT, "0.0.0.0", () => {
     analytics: `http://localhost:${PORT}/advanced-analytics`
   });
   
-  // Start background services (with error handling to prevent startup crashes)
-  logger.info('Starting background services...');
-  try {
-    pollingService.start();
-    cleanupService.start();
-    logManager.scheduleLogManagement();
-    logger.info('All services started successfully!');
-  } catch (error) {
-    logger.error('Some background services failed to start, but server is still running', {
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    // Don't crash the server if background services fail
+  // Railway-specific startup delay
+  if (STARTUP_DELAY > 0) {
+    console.log(`⏳ Railway startup delay: ${STARTUP_DELAY}ms`);
+    setTimeout(() => {
+      startBackgroundServices();
+    }, STARTUP_DELAY);
+  } else {
+    startBackgroundServices();
+  }
+  
+  function startBackgroundServices() {
+    // Start background services (with error handling to prevent startup crashes)
+    logger.info('Starting background services...');
+    try {
+      pollingService.start();
+      cleanupService.start();
+      logManager.scheduleLogManagement();
+      logger.info('All services started successfully!');
+      console.log(`✅ All services ready - Railway health checks should pass`);
+    } catch (error) {
+      logger.error('Some background services failed to start, but server is still running', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      console.log(`⚠️ Some services failed, but server is still running`);
+      // Don't crash the server if background services fail
+    }
   }
 });
 

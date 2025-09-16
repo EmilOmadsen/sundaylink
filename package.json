@@ -20,7 +20,9 @@
     "npm": ">=9.0.0"
   },
   "railway": {
-    "nodeVersion": "20"
+    "nodeVersion": "20",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 5000
   },
   "dependencies": {
     "axios": "^1.11.0",
