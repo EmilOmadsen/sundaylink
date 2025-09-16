@@ -90,6 +90,24 @@ app.get('/', (req, res) => {
 // Serve static files
 app.use(express.static('public'));
 
+// Spotify OAuth routes
+app.get('/auth/spotify', (req, res) => {
+  res.status(200).json({
+    message: 'Spotify OAuth endpoint',
+    status: 'ready',
+    note: 'Full Spotify integration will be available when TypeScript routes are loaded'
+  });
+});
+
+app.get('/auth/spotify/callback', (req, res) => {
+  res.status(200).json({
+    message: 'Spotify OAuth callback endpoint',
+    status: 'ready',
+    query: req.query,
+    note: 'Full Spotify integration will be available when TypeScript routes are loaded'
+  });
+});
+
 // API routes placeholder
 app.get('/api/*', (req, res) => {
   res.status(200).json({
