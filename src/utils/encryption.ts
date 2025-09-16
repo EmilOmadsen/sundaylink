@@ -21,12 +21,14 @@ export function decryptRefreshToken(encryptedToken: string): string {
     const token = decrypted.toString(CryptoJS.enc.Utf8);
     
     if (!token) {
-      throw new Error('Failed to decrypt token');
+      throw new Error('Failed to decrypt token - encryption key may have changed');
     }
     
     return token;
   } catch (error) {
-    throw new Error('Failed to decrypt refresh token');
+    console.warn('Encryption key mismatch detected. This usually happens when the ENCRYPTION_KEY environment variable changes.');
+    console.warn('Users will need to reconnect their Spotify accounts.');
+    throw new Error('Failed to decrypt refresh token - encryption key may have changed');
   }
 }
 

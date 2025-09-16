@@ -9,6 +9,7 @@
     "build": "tsc",
     "start": "npm run migrate || echo 'Migration failed, continuing...' && node dist/index.js",
     "migrate": "ts-node src/utils/migrate.ts",
+    "clear-tokens": "ts-node src/utils/clearInvalidTokens.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

@@ -181,15 +181,16 @@ class PollingService {
       
       // Check if it's a Spotify credential error
       if (errorMessage.includes('Spotify credentials not configured') || 
-          errorMessage.includes('Invalid Spotify client credentials')) {
-        logger.error(`Spotify credentials not configured - skipping user polling`, {
+          errorMessage.includes('Invalid Spotify client credentials') ||
+          errorMessage.includes('Failed to decrypt refresh token')) {
+        logger.error(`Spotify integration issue - skipping user polling`, {
           userId: user.id,
           email: user.email,
           error: errorMessage,
           duration: `${Date.now() - startTime}ms`,
-          action: 'Please configure SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables'
+          action: 'Please reconfigure Spotify credentials or encryption key'
         });
-        // Don't throw error for credential issues, just skip this user
+        // Don't throw error for credential/encryption issues, just skip this user
         return;
       }
       
