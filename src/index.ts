@@ -3,6 +3,26 @@ import dotenv from 'dotenv';
 // MUST load environment variables FIRST before any other imports
 dotenv.config();
 
+// Check for required environment variables and set defaults
+const requiredEnvVars = ['DB_PATH', 'JWT_SECRET', 'ENCRYPTION_KEY'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  console.warn(`⚠️ Missing environment variables: ${missingVars.join(', ')}`);
+  console.warn('Using default values for development...');
+  
+  // Set default values
+  if (!process.env.DB_PATH) {
+    process.env.DB_PATH = './db/soundlink-lite.db';
+  }
+  if (!process.env.JWT_SECRET) {
+    process.env.JWT_SECRET = 'sunday-link-jwt-secret-key-2024-change-in-production';
+  }
+  if (!process.env.ENCRYPTION_KEY) {
+    process.env.ENCRYPTION_KEY = 'sunday-link-encryption-key-32';
+  }
+}
+
 // Import logger after env is loaded
 import logger from './utils/logger';
 import logManager from './utils/logManager';
