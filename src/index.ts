@@ -38,6 +38,8 @@ if (process.env.RAILWAY_ENVIRONMENT) {
   console.log(`🚂 Railway Environment: ${process.env.RAILWAY_ENVIRONMENT}`);
   console.log(`🔧 Railway Project: ${process.env.RAILWAY_PROJECT_NAME || 'unknown'}`);
   console.log(`🌍 Railway Service: ${process.env.RAILWAY_SERVICE_NAME || 'unknown'}`);
+  console.log(`📊 Railway Port: ${process.env.PORT || 'not set'}`);
+  console.log(`🗄️ Database Path: ${process.env.DB_PATH || './db/soundlink-lite.db'}`);
 }
 
 // Import logger after env is loaded
@@ -93,7 +95,7 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Railway-specific startup delay to ensure all services are ready
-const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.RAILWAY_STARTUP_DELAY) : 0;
+const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.RAILWAY_STARTUP_DELAY) : 2000;
 
 // Health check endpoint - Railway compatible (no dependencies, cannot throw)
 // MUST be first route before any middleware
@@ -108,12 +110,18 @@ app.get('/health', (req, res) => {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: process.env.NODE_ENV || 'development',
-      port: PORT
+      port: PORT,
+      railway: process.env.RAILWAY_ENVIRONMENT || 'local'
     });
   } catch (error) {
     // Fallback response if anything goes wrong
     res.status(200).send('OK');
   }
+});
+
+// Simple test endpoint for Railway
+app.get('/test', (req, res) => {
+  res.status(200).send('Railway test endpoint working');
 });
 
 // Trust proxy for getting real IP addresses
