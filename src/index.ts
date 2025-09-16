@@ -13,7 +13,10 @@ if (missingVars.length > 0) {
   
   // Set default values
   if (!process.env.DB_PATH) {
-    process.env.DB_PATH = './db/soundlink-lite.db';
+    // Use Railway's persistent storage if available, otherwise local path
+    process.env.DB_PATH = process.env.RAILWAY_ENVIRONMENT 
+      ? '/app/data/soundlink-lite.db' 
+      : './db/soundlink-lite.db';
   }
   if (!process.env.JWT_SECRET) {
     process.env.JWT_SECRET = 'sunday-link-jwt-secret-key-2024-change-in-production';
@@ -46,6 +49,8 @@ if (process.env.RAILWAY_ENVIRONMENT) {
 import logger from './utils/logger';
 import logManager from './utils/logManager';
 import { requestLogger, errorLogger } from './middleware/requestLogger';
+import fs from 'fs';
+import path from 'path';
 
 // Process guards for better error handling
 process.on('unhandledRejection', (err) => {
@@ -97,26 +102,23 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 // Railway-specific startup delay to ensure all services are ready
 const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.RAILWAY_STARTUP_DELAY) : 2000;
 
+// Ensure database directory exists (especially important for Railway)
+try {
+  const dbPath = process.env.DB_PATH || './db/soundlink-lite.db';
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+    console.log(`📁 Created database directory: ${dbDir}`);
+  }
+} catch (error) {
+  console.warn('⚠️ Could not create database directory:', error instanceof Error ? error.message : 'Unknown error');
+}
+
 // Health check endpoint - Railway compatible (no dependencies, cannot throw)
 // MUST be first route before any middleware
 app.get('/health', (req, res) => {
-  try {
-    // Set explicit headers for Railway compatibility
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.status(200).json({ 
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development',
-      port: PORT,
-      railway: process.env.RAILWAY_ENVIRONMENT || 'local'
-    });
-  } catch (error) {
-    // Fallback response if anything goes wrong
-    res.status(200).send('OK');
-  }
+  // Ultra-simple health check - no database, no services, no dependencies
+  res.status(200).send('OK');
 });
 
 // Simple test endpoint for Railway
