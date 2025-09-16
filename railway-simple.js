@@ -11,7 +11,7 @@ console.log('🚂 Railway Simple Server Starting...');
 console.log('🗄️ DB_PATH:', process.env.DB_PATH);
 console.log('🌍 NODE_ENV:', process.env.NODE_ENV);
 console.log('📊 Railway PORT:', process.env.PORT);
-console.log('📊 Using PORT:', process.env.PORT || '3000');
+console.log('📊 Using PORT:', process.env.PORT || '8080');
 
 app.get('/ping', (req, res) => {
   res.status(200).send('pong');
@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Health check endpoint
 app.get('/health', (req, res) => {

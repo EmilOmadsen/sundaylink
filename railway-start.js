@@ -32,7 +32,7 @@ console.log('🚂 Railway Environment Variables:');
 console.log('  DB_PATH:', process.env.DB_PATH);
 console.log('  NODE_ENV:', process.env.NODE_ENV);
 console.log('  RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
-console.log('  PORT:', process.env.PORT || '3000');
+  console.log('  PORT:', process.env.PORT || '8080');
 
 // Start the main application
 console.log('🚀 Starting Sunday Link application...');
@@ -48,7 +48,7 @@ try {
   console.log('🔄 Starting minimal fallback server...');
   
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 8080;
   
   app.get('/health', (req, res) => {
     res.status(200).json({

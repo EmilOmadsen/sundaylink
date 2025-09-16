@@ -41,7 +41,7 @@ console.log('🚂 Railway Environment:', process.env.RAILWAY_ENVIRONMENT || 'loc
 
 // Ensure PORT is set (Railway provides this automatically)
 if (!process.env.PORT) {
-  process.env.PORT = '3000';
+  process.env.PORT = '8080';
 }
 
 // Railway-specific environment variable fallback
@@ -115,7 +115,7 @@ import cleanupService from './services/cleanup';
 import MigrationRunner from './utils/migrate';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '8080', 10);
 
 // Railway-specific startup delay to ensure all services are ready
 const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.RAILWAY_STARTUP_DELAY) : 2000;
@@ -162,7 +162,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    port: process.env.PORT || '3000',
+    port: process.env.PORT || '8080',
     railway: process.env.RAILWAY_ENVIRONMENT ? 'production' : 'local'
   });
 });

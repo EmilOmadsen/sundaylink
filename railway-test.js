@@ -20,7 +20,7 @@ app.get('/', (req, res) => {
 });
 
 // Start immediately
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server listening on port ${PORT}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
