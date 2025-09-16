@@ -28,6 +28,11 @@ if (!process.env.PORT) {
   process.env.PORT = '3000';
 }
 
+// Railway-specific environment variable fallback
+if (!process.env.NIXPACKS_NODE_VERSION) {
+  process.env.NIXPACKS_NODE_VERSION = '20';
+}
+
 // Import logger after env is loaded
 import logger from './utils/logger';
 import logManager from './utils/logManager';
@@ -164,15 +169,19 @@ const server = app.listen(PORT, "0.0.0.0", () => {
     analytics: `http://localhost:${PORT}/advanced-analytics`
   });
   
-  // Start background services
+  // Start background services (with error handling to prevent startup crashes)
   logger.info('Starting background services...');
-  pollingService.start();
-  cleanupService.start();
-  
-  // Start log management
-  logManager.scheduleLogManagement();
-  
-  logger.info('All services started successfully!');
+  try {
+    pollingService.start();
+    cleanupService.start();
+    logManager.scheduleLogManagement();
+    logger.info('All services started successfully!');
+  } catch (error) {
+    logger.error('Some background services failed to start, but server is still running', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    // Don't crash the server if background services fail
+  }
 });
 
 // Handle EADDRINUSE gracefully
