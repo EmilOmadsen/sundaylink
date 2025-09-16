@@ -114,23 +114,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 app.use(express.static('public'));
 
-// Health check endpoint
+// Health check endpoint - Railway compatible (no dependencies, cannot throw)
 app.get('/health', (req, res) => {
-  const healthData = {
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    logStats: logger.getLogStats(),
-    logManagerStats: logManager.getLogStats()
-  };
-  
-  logger.debug('Health check requested', { 
-    ip: req.ip,
-    userAgent: req.get('User-Agent')
-  });
-  
-  res.json(healthData);
+  res.status(200).json({ status: 'ok' });
 });
 
 // Root route - redirect to login
