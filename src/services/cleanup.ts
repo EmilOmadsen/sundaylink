@@ -1,16 +1,20 @@
 import cron from 'node-cron';
 import db from './database';
+import logger from '../utils/logger';
 
 class CleanupService {
   private isRunning = false;
 
   start() {
     if (this.isRunning) {
-      console.log('Cleanup service is already running');
+      logger.warn('Cleanup service is already running');
       return;
     }
 
-    console.log('Starting automatic data cleanup service (runs daily at 2 AM)');
+    logger.info('Starting automatic data cleanup service', {
+      schedule: 'daily at 2 AM',
+      timezone: 'server time'
+    });
     
     // Schedule daily cleanup at 2 AM
     cron.schedule('0 2 * * *', () => {
@@ -25,7 +29,7 @@ class CleanupService {
 
   stop() {
     this.isRunning = false;
-    console.log('Cleanup service stopped');
+    logger.info('Cleanup service stopped');
   }
 
   cleanupExpiredData(): {
@@ -38,8 +42,9 @@ class CleanupService {
     followers_snapshots: number;
     total_deleted: number;
   } {
+    const startTime = Date.now();
     try {
-      console.log('🧹 Starting automatic data cleanup...');
+      logger.cleanup('Starting automatic data cleanup');
 
       const results = {
         campaigns: 0,
@@ -101,17 +106,23 @@ class CleanupService {
                              results.sessions + results.plays + results.attributions + 
                              results.followers_snapshots;
 
+      const duration = Date.now() - startTime;
       if (results.total_deleted > 0) {
-        console.log(`✅ Cleanup complete: deleted ${results.total_deleted} expired records`);
-        console.log(`   - Campaigns: ${results.campaigns}`);
-        console.log(`   - Clicks: ${results.clicks}`);
-        console.log(`   - Users: ${results.users}`);
-        console.log(`   - Sessions: ${results.sessions}`);
-        console.log(`   - Plays: ${results.plays}`);
-        console.log(`   - Attributions: ${results.attributions}`);
-        console.log(`   - Followers snapshots: ${results.followers_snapshots}`);
+        logger.cleanup('Cleanup complete - expired records deleted', {
+          totalDeleted: results.total_deleted,
+          campaigns: results.campaigns,
+          clicks: results.clicks,
+          users: results.users,
+          sessions: results.sessions,
+          plays: results.plays,
+          attributions: results.attributions,
+          followersSnapshots: results.followers_snapshots,
+          duration: `${duration}ms`
+        });
       } else {
-        console.log('✅ Cleanup complete: no expired records found');
+        logger.cleanup('Cleanup complete - no expired records found', {
+          duration: `${duration}ms`
+        });
       }
 
       // Also run VACUUM to reclaim disk space
@@ -120,18 +131,28 @@ class CleanupService {
       return results;
 
     } catch (error) {
-      console.error('Error in data cleanup:', error);
+      logger.error('Error in data cleanup', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        duration: `${Date.now() - startTime}ms`
+      }, error instanceof Error ? error : undefined);
       throw error;
     }
   }
 
   private vacuumDatabase() {
+    const startTime = Date.now();
     try {
-      console.log('🗜️  Running database VACUUM to reclaim space...');
+      logger.cleanup('Running database VACUUM to reclaim space');
       db.exec('VACUUM');
-      console.log('✅ Database VACUUM completed');
+      const duration = Date.now() - startTime;
+      logger.cleanup('Database VACUUM completed', {
+        duration: `${duration}ms`
+      });
     } catch (error) {
-      console.error('Error running VACUUM:', error);
+      logger.error('Error running VACUUM', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        duration: `${Date.now() - startTime}ms`
+      }, error instanceof Error ? error : undefined);
     }
   }
 

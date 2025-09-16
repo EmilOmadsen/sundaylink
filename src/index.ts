@@ -3,9 +3,18 @@ import dotenv from 'dotenv';
 // MUST load environment variables FIRST before any other imports
 dotenv.config();
 
+// Import logger after env is loaded
+import logger from './utils/logger';
+import logManager from './utils/logManager';
+import { requestLogger, errorLogger } from './middleware/requestLogger';
+
 // Process guards for better error handling
 process.on('unhandledRejection', (err) => {
-  console.error('🚨 UnhandledRejection:', err);
+  logger.error('Unhandled Promise Rejection', { 
+    error: err instanceof Error ? err.message : 'Unknown error',
+    stack: err instanceof Error ? err.stack : undefined
+  }, err instanceof Error ? err : undefined);
+  
   // Don't exit in development, just log the error
   if (process.env.NODE_ENV === 'production') {
     process.exit(1);
@@ -13,7 +22,11 @@ process.on('unhandledRejection', (err) => {
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('🚨 UncaughtException:', err);
+  logger.error('Uncaught Exception', { 
+    error: err.message,
+    stack: err.stack 
+  }, err);
+  
   // Don't exit in development, just log the error
   if (process.env.NODE_ENV === 'production') {
     process.exit(1);
@@ -45,6 +58,9 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy for getting real IP addresses
 app.set('trust proxy', true);
 
+// Add request logging middleware
+app.use(requestLogger);
+
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: true,
@@ -75,7 +91,21 @@ app.use(express.static('public'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const healthData = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    logStats: logger.getLogStats(),
+    logManagerStats: logManager.getLogStats()
+  };
+  
+  logger.debug('Health check requested', { 
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+  
+  res.json(healthData);
 });
 
 // Root route - redirect to login
@@ -104,43 +134,65 @@ app.use('/advanced-analytics', advancedAnalyticsRoutes);
 app.use('/', clickRoutes);
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Sundaylink server is running on port ${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
-  console.log(`🔐 Login: http://localhost:${PORT}/auth/login`);
+  logger.info(`Sunday Link server started successfully`, {
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    nodeVersion: process.version,
+    platform: process.platform
+  });
+  
+  logger.info(`Server endpoints available`, {
+    dashboard: `http://localhost:${PORT}/dashboard`,
+    login: `http://localhost:${PORT}/auth/login`,
+    health: `http://localhost:${PORT}/health`,
+    analytics: `http://localhost:${PORT}/advanced-analytics`
+  });
   
   // Start background services
-  console.log('🎵 Starting background services...');
+  logger.info('Starting background services...');
   pollingService.start();
   cleanupService.start();
   
-  console.log('✅ All services started successfully!');
+  // Start log management
+  logManager.scheduleLogManagement();
+  
+  logger.info('All services started successfully!');
 });
 
 // Handle EADDRINUSE gracefully
 server.on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use. Please try a different port or kill the process using this port.`);
-    console.error(`💡 You can run: lsof -ti:${PORT} | xargs kill -9`);
+    logger.error(`Port ${PORT} is already in use`, {
+      port: PORT,
+      error: err.message,
+      suggestion: `Run: lsof -ti:${PORT} | xargs kill -9`
+    });
     process.exit(1);
   } else {
-    console.error('❌ Server error:', err);
+    logger.error('Server error occurred', {
+      error: err.message,
+      code: err.code
+    }, err);
     process.exit(1);
   }
 });
 
+// Add error handling middleware at the end
+app.use(errorLogger);
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  logger.info('SIGTERM received, shutting down gracefully...');
   server.close(() => {
-    console.log('✅ Server closed');
+    logger.info('Server closed successfully');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully...');
+  logger.info('SIGINT received, shutting down gracefully...');
   server.close(() => {
-    console.log('✅ Server closed');
+    logger.info('Server closed successfully');
     process.exit(0);
   });
 });

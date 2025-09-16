@@ -4,6 +4,7 @@ import spotifyService from './spotify';
 import playsService, { CreatePlayData } from './plays';
 import attributionService from './attribution';
 import followersService from './followers';
+import logger from '../utils/logger';
 
 class PollingService {
   private isRunning = false;
@@ -11,11 +12,14 @@ class PollingService {
   
   start() {
     if (this.isRunning) {
-      console.log('Polling service is already running');
+      logger.warn('Polling service is already running');
       return;
     }
 
-    console.log(`Starting background polling service (every ${this.intervalMinutes} minutes)`);
+    logger.info(`Starting background polling service`, {
+      intervalMinutes: this.intervalMinutes,
+      schedule: `every ${this.intervalMinutes} minutes`
+    });
     
     // Run immediately on startup
     this.pollAllUsers();
@@ -28,10 +32,15 @@ class PollingService {
     // Schedule daily followers snapshots at 02:15 AM server time
     cron.schedule('15 2 * * *', async () => {
       try {
-        console.log('📆 Running scheduled followers tracking (daily at 02:15)');
+        logger.info('Running scheduled followers tracking', {
+          schedule: 'daily at 02:15',
+          timezone: 'server time'
+        });
         await followersService.trackAllCampaignFollowers();
       } catch (error) {
-        console.error('Error during scheduled followers tracking:', error);
+        logger.error('Error during scheduled followers tracking', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }, error instanceof Error ? error : undefined);
       }
     });
 
@@ -40,18 +49,22 @@ class PollingService {
 
   stop() {
     this.isRunning = false;
-    console.log('Polling service stopped');
+    logger.info('Polling service stopped');
   }
 
   async pollAllUsers() {
+    const startTime = Date.now();
     try {
-      console.log('🎵 Starting polling cycle...');
+      logger.polling('Starting polling cycle');
       
       const users = authService.getAllForPolling();
-      console.log(`Found ${users.length} users with Spotify connected`);
+      logger.polling('Found users for polling', {
+        userCount: users.length,
+        users: users.map(u => ({ id: u.id, email: u.email }))
+      });
 
       if (users.length === 0) {
-        console.log('No users to poll');
+        logger.polling('No users to poll');
         return;
       }
 
@@ -63,7 +76,11 @@ class PollingService {
           await this.pollUserPlays(user);
           successCount++;
         } catch (error) {
-          console.error(`Error polling user ${user.id} (${user.email}):`, error);
+          logger.error(`Error polling user ${user.id}`, {
+            userId: user.id,
+            email: user.email,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }, error instanceof Error ? error : undefined);
           errorCount++;
         }
 
@@ -71,24 +88,42 @@ class PollingService {
         await this.sleep(200);
       }
 
-      console.log(`✅ Polling cycle complete: ${successCount} success, ${errorCount} errors`);
+      const duration = Date.now() - startTime;
+      logger.polling('Polling cycle complete', {
+        successCount,
+        errorCount,
+        duration: `${duration}ms`,
+        averageTimePerUser: `${Math.round(duration / users.length)}ms`
+      });
 
       // Immediately run attribution after polling finishes to link new plays to recent clicks
       try {
         const attributionResult = await attributionService.attributeNewPlays();
-        console.log(`🔎 Attribution after polling: ${attributionResult.attributions_created} new attributions across ${attributionResult.plays_processed} plays`);
+        logger.polling('Attribution completed after polling', {
+          attributionsCreated: attributionResult.attributions_created,
+          playsProcessed: attributionResult.plays_processed
+        });
       } catch (error) {
-        console.error('Error running attribution after polling:', error);
+        logger.error('Error running attribution after polling', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }, error instanceof Error ? error : undefined);
       }
     } catch (error) {
-      console.error('Error in polling cycle:', error);
+      logger.error('Error in polling cycle', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        duration: `${Date.now() - startTime}ms`
+      }, error instanceof Error ? error : undefined);
     }
   }
 
   async pollUserPlays(user: any) {
+    const startTime = Date.now();
     try {
       if (!user.refresh_token_encrypted) {
-        console.log(`User ${user.id} has no refresh token`);
+        logger.warn(`User has no refresh token`, {
+          userId: user.id,
+          email: user.email
+        });
         return;
       }
 
@@ -99,7 +134,10 @@ class PollingService {
       const recentlyPlayed = await spotifyService.getRecentlyPlayed(access_token, 50);
       
       if (!recentlyPlayed.items || recentlyPlayed.items.length === 0) {
-        console.log(`No recent plays for user ${user.id}`);
+        logger.debug(`No recent plays for user`, {
+          userId: user.id,
+          email: user.email
+        });
         authService.updateLastPolled(user.id);
         return;
       }
@@ -117,17 +155,34 @@ class PollingService {
       // Save plays to database (bulk insert)
       const createdCount = playsService.createBulk(plays);
       
+      const duration = Date.now() - startTime;
       if (createdCount > 0) {
-        console.log(`📀 User ${user.id}: saved ${createdCount} new plays (${plays.length} total fetched)`);
+        logger.polling('User plays saved successfully', {
+          userId: user.id,
+          email: user.email,
+          newPlays: createdCount,
+          totalFetched: plays.length,
+          duration: `${duration}ms`
+        });
       } else {
-        console.log(`📀 User ${user.id}: no new plays (${plays.length} fetched, all duplicates)`);
+        logger.debug(`No new plays for user`, {
+          userId: user.id,
+          email: user.email,
+          totalFetched: plays.length,
+          duration: `${duration}ms`
+        });
       }
 
       // Update last polled timestamp
       authService.updateLastPolled(user.id);
 
     } catch (error) {
-      console.error(`Failed to poll user ${user.id}:`, error);
+      logger.error(`Failed to poll user`, {
+        userId: user.id,
+        email: user.email,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        duration: `${Date.now() - startTime}ms`
+      }, error instanceof Error ? error : undefined);
       throw error;
     }
   }
