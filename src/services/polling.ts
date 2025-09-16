@@ -177,10 +177,26 @@ class PollingService {
       authService.updateLastPolled(user.id);
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check if it's a Spotify credential error
+      if (errorMessage.includes('Spotify credentials not configured') || 
+          errorMessage.includes('Invalid Spotify client credentials')) {
+        logger.error(`Spotify credentials not configured - skipping user polling`, {
+          userId: user.id,
+          email: user.email,
+          error: errorMessage,
+          duration: `${Date.now() - startTime}ms`,
+          action: 'Please configure SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables'
+        });
+        // Don't throw error for credential issues, just skip this user
+        return;
+      }
+      
       logger.error(`Failed to poll user`, {
         userId: user.id,
         email: user.email,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         duration: `${Date.now() - startTime}ms`
       }, error instanceof Error ? error : undefined);
       throw error;

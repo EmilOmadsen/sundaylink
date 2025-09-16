@@ -41,6 +41,11 @@ class SpotifyService {
     
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
       console.warn('⚠️ Spotify credentials not fully configured. Some features may not work.');
+      console.warn('📝 Please set the following environment variables:');
+      console.warn('   - SPOTIFY_CLIENT_ID');
+      console.warn('   - SPOTIFY_CLIENT_SECRET');
+      console.warn('   - SPOTIFY_REDIRECT_URI');
+      console.warn('🔗 Get credentials from: https://developer.spotify.com/dashboard');
     }
   }
 
@@ -90,6 +95,11 @@ class SpotifyService {
 
   async refreshAccessToken(encryptedRefreshToken: string): Promise<{ access_token: string; expires_in: number }> {
     try {
+      // Check if credentials are configured
+      if (!this.clientId || !this.clientSecret) {
+        throw new Error('Spotify credentials not configured. Please set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables.');
+      }
+
       const refreshToken = decryptRefreshToken(encryptedRefreshToken);
       
       const response = await axios.post(
@@ -111,8 +121,24 @@ class SpotifyService {
         access_token: response.data.access_token,
         expires_in: response.data.expires_in
       };
-    } catch (error) {
-      console.error('Error refreshing access token:', error);
+    } catch (error: any) {
+      // Enhanced error logging
+      if (error.response) {
+        console.error('Spotify API Error:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          clientId: this.clientId ? `${this.clientId.substring(0, 8)}...` : 'NOT_SET',
+          hasClientSecret: !!this.clientSecret
+        });
+        
+        if (error.response.data?.error === 'invalid_client') {
+          throw new Error('Invalid Spotify client credentials. Please check your SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables.');
+        }
+      } else {
+        console.error('Network error refreshing access token:', error.message);
+      }
+      
       throw new Error('Failed to refresh access token');
     }
   }
