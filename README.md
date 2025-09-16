@@ -11,6 +11,45 @@ A smart link platform for music artists to track Spotify playlist performance an
 - **Attribution Tracking**: Link clicks to actual Spotify plays
 - **Advanced Analytics**: Comprehensive dashboards with charts and insights
 - **User Authentication**: Secure JWT-based authentication system
+- **Reliable SQLite Database**: Production-ready database with WAL mode and migrations
+
+## 🗄️ SQLite Database
+
+This application uses SQLite with production-ready configurations:
+
+### Database Configuration
+- **WAL Mode**: Write-Ahead Logging for better concurrency
+- **NORMAL Synchronous**: Balanced safety and performance
+- **Foreign Keys**: Enabled for data integrity
+- **Single Replica**: SQLite requires only 1 replica on Railway
+
+### Environment Variables
+```bash
+# Required for Railway deployment
+DB_PATH=/mnt/data/soundlink-lite.db
+
+# For local development
+DB_PATH=./db/soundlink-lite.db
+```
+
+### Database Scripts
+```bash
+# Run migrations
+npm run migrate
+
+# Create backup
+npm run backup:sqlite
+
+# Development versions
+npm run migrate:dev
+npm run backup:sqlite:dev
+```
+
+### Railway Deployment Notes
+- Set `DB_PATH=/mnt/data/soundlink-lite.db` in Railway environment variables
+- Ensure only 1 replica is running (SQLite limitation)
+- Database migrations run automatically on startup
+- Health checks work independently of database state
 
 ## 🚀 Quick Start
 

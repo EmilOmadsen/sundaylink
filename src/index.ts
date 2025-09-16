@@ -15,7 +15,7 @@ if (missingVars.length > 0) {
   if (!process.env.DB_PATH) {
     // Use Railway's persistent storage if available, otherwise local path
     process.env.DB_PATH = process.env.RAILWAY_ENVIRONMENT 
-      ? '/app/data/soundlink-lite.db' 
+      ? '/mnt/data/soundlink-lite.db' 
       : './db/soundlink-lite.db';
   }
   if (!process.env.JWT_SECRET) {
@@ -25,6 +25,19 @@ if (missingVars.length > 0) {
     process.env.ENCRYPTION_KEY = 'sunday-link-encryption-key-32';
   }
 }
+
+// Ensure DB_PATH is set and log it clearly
+const dbPath = process.env.DB_PATH;
+if (!dbPath) {
+  console.error('❌ DB_PATH environment variable is required!');
+  console.error('💡 For Railway deployment, set: DB_PATH=/mnt/data/soundlink-lite.db');
+  console.error('💡 For local development, set: DB_PATH=./db/soundlink-lite.db');
+  process.exit(1);
+}
+
+console.log('🗄️ SQLite DB path:', dbPath);
+console.log('🌍 NODE_ENV:', process.env.NODE_ENV || 'development');
+console.log('🚂 Railway Environment:', process.env.RAILWAY_ENVIRONMENT || 'local');
 
 // Ensure PORT is set (Railway provides this automatically)
 if (!process.env.PORT) {
@@ -119,38 +132,39 @@ try {
   console.warn('⚠️ Could not create database directory:', error instanceof Error ? error.message : 'Unknown error');
 }
 
-// Run database migrations BEFORE any services are initialized
-if (IS_RAILWAY) {
-  console.log('🚂 Railway detected - running minimal migrations...');
-  (async () => {
-    try {
-      const migrationRunner = new MigrationRunner();
-      await migrationRunner.run();
-      console.log('✅ Railway migrations completed successfully');
-    } catch (error) {
-      console.error('❌ Railway migration failed:', error instanceof Error ? error.message : 'Unknown error');
-      console.log('⚠️ Railway continuing without migrations - health checks should still work');
-    }
-  })();
-} else {
-  console.log('🔄 Running database migrations...');
-  (async () => {
-    try {
-      const migrationRunner = new MigrationRunner();
-      await migrationRunner.run();
-      console.log('✅ Database migrations completed successfully');
-    } catch (error) {
-      console.error('❌ Database migration failed:', error instanceof Error ? error.message : 'Unknown error');
-      console.log('⚠️ Continuing without migrations - some features may not work');
-    }
-  })();
-}
+// Initialize database connection and run migrations
+console.log('🔄 Initializing database and running migrations...');
+(async () => {
+  try {
+    // Import database connection (this will establish the connection with PRAGMAs)
+    const { getDatabaseConnection } = await import('./utils/database');
+    const dbConnection = getDatabaseConnection();
+    dbConnection.connect(); // This will run PRAGMAs and log connection details
+    
+    // Run migrations
+    const migrationRunner = new MigrationRunner();
+    await migrationRunner.run();
+    console.log('✅ Database initialization and migrations completed successfully');
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error instanceof Error ? error.message : 'Unknown error');
+    console.log('⚠️ Continuing without database - health checks should still work');
+    console.log('💡 Check DB_PATH environment variable and database permissions');
+  }
+})();
 
 // Health check endpoint - Railway compatible (no dependencies, cannot throw)
 // MUST be first route before any middleware
 app.get('/health', (req, res) => {
   // Ultra-simple health check - no database, no services, no dependencies
-  res.status(200).send('OK');
+  // This endpoint must work even if database is not available
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || '3000',
+    railway: process.env.RAILWAY_ENVIRONMENT ? 'production' : 'local'
+  });
 });
 
 // Additional Railway health check routes
