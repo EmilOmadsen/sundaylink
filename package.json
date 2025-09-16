@@ -9,6 +9,7 @@
     "build": "tsc",
     "start": "node dist/scripts/migrate.js && node dist/index.js",
     "start:railway": "node server.js",
+    "start:minimal": "node railway-ultra-minimal.js",
     "migrate": "node dist/scripts/migrate.js",
     "migrate:dev": "ts-node src/scripts/migrate.ts",
     "backup:sqlite": "node dist/scripts/backup-sqlite.js",
