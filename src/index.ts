@@ -255,8 +255,8 @@ server.on('error', (err: any) => {
 // Add error handling middleware at the end
 app.use(errorLogger);
 
-// Railway fallback route - catch any missed requests
-app.get('*', (req, res) => {
+// Railway fallback middleware - catch any missed requests
+app.use((req, res) => {
   if (req.path === '/health' || req.headers['user-agent']?.includes('Railway')) {
     res.status(200).send('OK');
     return;
