@@ -80,6 +80,12 @@ import cleanupService from './services/cleanup';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+// Health check endpoint - Railway compatible (no dependencies, cannot throw)
+// MUST be first route before any middleware
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Trust proxy for getting real IP addresses
 app.set('trust proxy', true);
 
@@ -113,11 +119,6 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from root directory and public directory
 app.use(express.static('.'));
 app.use(express.static('public'));
-
-// Health check endpoint - Railway compatible (no dependencies, cannot throw)
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
 
 // Root route - redirect to login
 app.get('/', (req, res) => {
