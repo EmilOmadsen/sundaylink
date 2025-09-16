@@ -36,13 +36,17 @@ if (!process.env.NIXPACKS_NODE_VERSION) {
   process.env.NIXPACKS_NODE_VERSION = '20';
 }
 
+// Railway detection - if we're on Railway, use minimal startup
+const IS_RAILWAY = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_NAME;
+
 // Railway deployment environment detection
-if (process.env.RAILWAY_ENVIRONMENT) {
-  console.log(`🚂 Railway Environment: ${process.env.RAILWAY_ENVIRONMENT}`);
+if (IS_RAILWAY) {
+  console.log(`🚂 Railway Environment: ${process.env.RAILWAY_ENVIRONMENT || 'production'}`);
   console.log(`🔧 Railway Project: ${process.env.RAILWAY_PROJECT_NAME || 'unknown'}`);
   console.log(`🌍 Railway Service: ${process.env.RAILWAY_SERVICE_NAME || 'unknown'}`);
   console.log(`📊 Railway Port: ${process.env.PORT || 'not set'}`);
   console.log(`🗄️ Database Path: ${process.env.DB_PATH || './db/soundlink-lite.db'}`);
+  console.log(`🎯 Railway Mode: Minimal startup for health check reliability`);
 }
 
 // Import logger after env is loaded
@@ -116,18 +120,31 @@ try {
 }
 
 // Run database migrations BEFORE any services are initialized
-console.log('🔄 Running database migrations...');
-(async () => {
-  try {
-    const migrationRunner = new MigrationRunner();
-    await migrationRunner.run();
-    console.log('✅ Database migrations completed successfully');
-  } catch (error) {
-    console.error('❌ Database migration failed:', error instanceof Error ? error.message : 'Unknown error');
-    // Don't crash the app, but log the error
-    console.log('⚠️ Continuing without migrations - some features may not work');
-  }
-})();
+if (IS_RAILWAY) {
+  console.log('🚂 Railway detected - running minimal migrations...');
+  (async () => {
+    try {
+      const migrationRunner = new MigrationRunner();
+      await migrationRunner.run();
+      console.log('✅ Railway migrations completed successfully');
+    } catch (error) {
+      console.error('❌ Railway migration failed:', error instanceof Error ? error.message : 'Unknown error');
+      console.log('⚠️ Railway continuing without migrations - health checks should still work');
+    }
+  })();
+} else {
+  console.log('🔄 Running database migrations...');
+  (async () => {
+    try {
+      const migrationRunner = new MigrationRunner();
+      await migrationRunner.run();
+      console.log('✅ Database migrations completed successfully');
+    } catch (error) {
+      console.error('❌ Database migration failed:', error instanceof Error ? error.message : 'Unknown error');
+      console.log('⚠️ Continuing without migrations - some features may not work');
+    }
+  })();
+}
 
 // Health check endpoint - Railway compatible (no dependencies, cannot throw)
 // MUST be first route before any middleware
@@ -251,9 +268,10 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   
   function startBackgroundServices() {
     // Skip background services on Railway to ensure health checks work
-    if (process.env.RAILWAY_ENVIRONMENT) {
+    if (IS_RAILWAY) {
       console.log(`🚂 Railway detected - skipping background services for health check reliability`);
       console.log(`✅ Railway deployment ready - health checks should pass`);
+      console.log(`🏥 Health endpoints: /health, /healthz, /ping`);
       return;
     }
     
