@@ -2,13 +2,13 @@
 console.log('🚀 BULLETPROOF Railway Server Starting...');
 
 // Set Railway environment variables immediately
-process.env.DB_PATH = '/mnt/data/soundlink-lite.db';
+process.env.DATABASE_PATH = '/mnt/data/soundlink-lite.db';
 process.env.NODE_ENV = 'production';
 process.env.RAILWAY_ENVIRONMENT = 'production';
 process.env.PORT = '8080';
 
 console.log('📊 Railway PORT:', process.env.PORT);
-console.log('🗄️ DB_PATH:', process.env.DB_PATH);
+console.log('🗄️ DATABASE_PATH:', process.env.DATABASE_PATH);
 console.log('🌍 NODE_ENV:', process.env.NODE_ENV);
 
 // Import Express

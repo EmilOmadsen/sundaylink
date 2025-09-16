@@ -2,7 +2,7 @@ import Database, { Database as DatabaseType } from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const dbPath = process.env.DB_PATH || './db/soundlink-lite.db';
+const dbPath = process.env.DATABASE_PATH || './db/soundlink-lite.db';
 
 // Ensure the db directory exists
 const dbDir = path.dirname(dbPath);

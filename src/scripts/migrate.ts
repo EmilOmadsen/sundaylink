@@ -18,7 +18,7 @@ class MigrationRunner {
   private migrationsDir: string;
 
   constructor() {
-    this.dbPath = process.env.DB_PATH || './db/soundlink-lite.db';
+    this.dbPath = process.env.DATABASE_PATH || './db/soundlink-lite.db';
     // Look for migrations in both src and dist directories
     this.migrationsDir = fs.existsSync('./src/db/migrations') 
       ? './src/db/migrations' 

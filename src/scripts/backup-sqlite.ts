@@ -9,7 +9,7 @@ class SQLiteBackup {
   private dbPath: string;
 
   constructor() {
-    this.dbPath = process.env.DB_PATH || './db/soundlink-lite.db';
+    this.dbPath = process.env.DATABASE_PATH || './db/soundlink-lite.db';
   }
 
   public async backup(): Promise<void> {

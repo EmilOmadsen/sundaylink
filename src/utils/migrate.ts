@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Check for required environment variables
-const requiredEnvVars = ['DB_PATH'];
+const requiredEnvVars = ['DATABASE_PATH'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
@@ -12,8 +12,8 @@ if (missingVars.length > 0) {
   console.warn('Using default values for development...');
   
   // Set default values
-  if (!process.env.DB_PATH) {
-    process.env.DB_PATH = './db/soundlink-lite.db';
+  if (!process.env.DATABASE_PATH) {
+    process.env.DATABASE_PATH = './db/soundlink-lite.db';
   }
 }
 

@@ -86,7 +86,7 @@ let dbConnection: DatabaseConnection | null = null;
 
 export function getDatabaseConnection(): DatabaseConnection {
   if (!dbConnection) {
-    const dbPath = process.env.DB_PATH || './db/soundlink-lite.db';
+    const dbPath = process.env.DATABASE_PATH || './db/soundlink-lite.db';
     dbConnection = new DatabaseConnection(dbPath);
   }
   return dbConnection;

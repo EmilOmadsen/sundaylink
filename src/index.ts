@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Check for required environment variables and set defaults
-const requiredEnvVars = ['DB_PATH', 'JWT_SECRET', 'ENCRYPTION_KEY'];
+const requiredEnvVars = ['DATABASE_PATH', 'JWT_SECRET', 'ENCRYPTION_KEY'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
@@ -12,9 +12,9 @@ if (missingVars.length > 0) {
   console.warn('Using default values for development...');
   
   // Set default values
-  if (!process.env.DB_PATH) {
+  if (!process.env.DATABASE_PATH) {
     // Use Railway's persistent storage if available, otherwise local path
-    process.env.DB_PATH = process.env.RAILWAY_ENVIRONMENT 
+    process.env.DATABASE_PATH = process.env.RAILWAY_ENVIRONMENT 
       ? '/mnt/data/soundlink-lite.db' 
       : './db/soundlink-lite.db';
   }
@@ -26,12 +26,12 @@ if (missingVars.length > 0) {
   }
 }
 
-// Ensure DB_PATH is set and log it clearly
-const dbPath = process.env.DB_PATH;
+// Ensure DATABASE_PATH is set and log it clearly
+const dbPath = process.env.DATABASE_PATH;
 if (!dbPath) {
-  console.error('❌ DB_PATH environment variable is required!');
-  console.error('💡 For Railway deployment, set: DB_PATH=/mnt/data/soundlink-lite.db');
-  console.error('💡 For local development, set: DB_PATH=./db/soundlink-lite.db');
+  console.error('❌ DATABASE_PATH environment variable is required!');
+  console.error('💡 For Railway deployment, set: DATABASE_PATH=/mnt/data/soundlink-lite.db');
+  console.error('💡 For local development, set: DATABASE_PATH=./db/soundlink-lite.db');
   process.exit(1);
 }
 
@@ -58,7 +58,7 @@ if (IS_RAILWAY) {
   console.log(`🔧 Railway Project: ${process.env.RAILWAY_PROJECT_NAME || 'unknown'}`);
   console.log(`🌍 Railway Service: ${process.env.RAILWAY_SERVICE_NAME || 'unknown'}`);
   console.log(`📊 Railway Port: ${process.env.PORT || 'not set'}`);
-  console.log(`🗄️ Database Path: ${process.env.DB_PATH || './db/soundlink-lite.db'}`);
+  console.log(`🗄️ Database Path: ${process.env.DATABASE_PATH || './db/soundlink-lite.db'}`);
   console.log(`🎯 Railway Mode: Minimal startup for health check reliability`);
 }
 
@@ -122,7 +122,7 @@ const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.R
 
 // Ensure database directory exists (especially important for Railway)
 try {
-  const dbPath = process.env.DB_PATH || './db/soundlink-lite.db';
+  const dbPath = process.env.DATABASE_PATH || './db/soundlink-lite.db';
   const dbDir = path.dirname(dbPath);
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
