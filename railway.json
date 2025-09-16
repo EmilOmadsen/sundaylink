@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node railway-test.js",
+    "startCommand": "./railway-start.sh",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 15000,
     "restartPolicyType": "ON_FAILURE",

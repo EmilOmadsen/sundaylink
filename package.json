@@ -8,7 +8,7 @@
     "dev:fast": "concurrently -k -n TYPECHECK,SERVER \"tsc --noEmit --watch\" \"tsx watch src/index.ts\"",
     "build": "tsc",
     "start": "node dist/scripts/migrate.js && node dist/index.js",
-    "start:railway": "node railway-minimal.js",
+    "start:railway": "node server.js",
     "migrate": "node dist/scripts/migrate.js",
     "migrate:dev": "ts-node src/scripts/migrate.ts",
     "backup:sqlite": "node dist/scripts/backup-sqlite.js",
