@@ -6,7 +6,8 @@
 console.log('🚀 ULTRA MINIMAL RAILWAY SERVER STARTING...');
 
 // Set PORT immediately - Railway expects this
-const PORT = process.env.PORT || 8080;
+process.env.PORT = '3000';
+const PORT = process.env.PORT || 3000;
 console.log('📊 PORT:', PORT);
 
 // Import only what Railway guarantees to have

@@ -19,7 +19,7 @@ SESSION_SECRET=sunday-link-session-secret-key-2024-change-in-production
 ### Application
 ```
 NODE_ENV=production
-PORT=8080
+PORT=3000
 ```
 
 ### Spotify (Optional - for full functionality)
