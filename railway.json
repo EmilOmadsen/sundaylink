@@ -4,9 +4,9 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "./railway-start.sh",
+    "startCommand": "node railway-bulletproof.js",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 15000,
+    "healthcheckTimeout": 30000,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
