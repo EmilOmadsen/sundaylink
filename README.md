@@ -228,4 +228,4 @@ src/
 db/
 ├── migrations/ # SQL migration files
 └── soundlink-lite.db # SQLite database
-```
+```# Railway Deployment Trigger - Tue Sep 16 13:51:11 CEST 2025
