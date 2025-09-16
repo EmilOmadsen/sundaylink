@@ -95,6 +95,7 @@ import advancedAnalyticsRoutes from './routes/advanced-analytics';
 // Import services
 import pollingService from './services/polling';
 import cleanupService from './services/cleanup';
+import MigrationRunner from './utils/migrate';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -113,6 +114,20 @@ try {
 } catch (error) {
   console.warn('⚠️ Could not create database directory:', error instanceof Error ? error.message : 'Unknown error');
 }
+
+// Run database migrations BEFORE any services are initialized
+console.log('🔄 Running database migrations...');
+(async () => {
+  try {
+    const migrationRunner = new MigrationRunner();
+    await migrationRunner.run();
+    console.log('✅ Database migrations completed successfully');
+  } catch (error) {
+    console.error('❌ Database migration failed:', error instanceof Error ? error.message : 'Unknown error');
+    // Don't crash the app, but log the error
+    console.log('⚠️ Continuing without migrations - some features may not work');
+  }
+})();
 
 // Health check endpoint - Railway compatible (no dependencies, cannot throw)
 // MUST be first route before any middleware
