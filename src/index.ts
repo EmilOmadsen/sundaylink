@@ -23,6 +23,11 @@ if (missingVars.length > 0) {
   }
 }
 
+// Ensure PORT is set (Railway provides this automatically)
+if (!process.env.PORT) {
+  process.env.PORT = '3000';
+}
+
 // Import logger after env is loaded
 import logger from './utils/logger';
 import logManager from './utils/logManager';
@@ -73,7 +78,7 @@ import pollingService from './services/polling';
 import cleanupService from './services/cleanup';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Trust proxy for getting real IP addresses
 app.set('trust proxy', true);
@@ -153,13 +158,17 @@ app.use('/advanced-analytics', advancedAnalyticsRoutes);
 // Click tracking routes (no /api prefix for clean URLs)
 app.use('/', clickRoutes);
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   logger.info(`Sunday Link server started successfully`, {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
     nodeVersion: process.version,
-    platform: process.platform
+    platform: process.platform,
+    host: "0.0.0.0"
   });
+  
+  // Log the actual port being used
+  console.log(`🚀 Server listening on port ${PORT}`);
   
   logger.info(`Server endpoints available`, {
     dashboard: `http://localhost:${PORT}/dashboard`,
