@@ -275,6 +275,23 @@ app.get('/', (req, res) => {
   res.redirect('/auth/login');
 });
 
+// Debug route to test API routes are working
+app.get('/debug/routes', (req, res) => {
+  res.json({
+    message: 'Routes debug endpoint',
+    timestamp: new Date().toISOString(),
+    availableRoutes: [
+      'GET /health',
+      'GET /auth/login',
+      'POST /api/campaigns',
+      'GET /api/campaigns',
+      'GET /dashboard',
+      'GET /create-campaign'
+    ],
+    version: '2.0'
+  });
+});
+
 // Start server AFTER database initialization
 async function startServer() {
   console.log('🚀 Starting bulletproof server...');
@@ -319,7 +336,7 @@ async function startServer() {
     console.log('📋 Importing campaigns API route...');
     const campaignRoutes = (await import('./routes/campaigns')).default;
     app.use('/api/campaigns', campaignRoutes);
-    console.log('✅ Campaigns API routes mounted at /api/campaigns');
+    console.log('✅ Campaigns API routes mounted at /api/campaigns (v2.0)');
     
     console.log('📋 Importing metrics API route...');
     const metricsRoutes = (await import('./routes/metrics')).default;
