@@ -39,9 +39,9 @@ console.log('🗄️ SQLite DB path:', dbPath);
 console.log('🌍 NODE_ENV:', process.env.NODE_ENV || 'development');
 console.log('🚂 Railway Environment:', process.env.RAILWAY_ENVIRONMENT || 'local');
 
-// Ensure PORT is set (Railway provides this automatically)
+// Railway provides PORT automatically, use 3000 as fallback for local development
 if (!process.env.PORT) {
-  process.env.PORT = '8080';
+  process.env.PORT = '3000';
 }
 
 // Railway-specific environment variable fallback
@@ -115,7 +115,7 @@ import cleanupService from './services/cleanup';
 import MigrationRunner from './utils/migrate';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '8080', 10);
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Railway-specific startup delay to ensure all services are ready
 const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.RAILWAY_STARTUP_DELAY) : 2000;
@@ -162,7 +162,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    port: process.env.PORT || '8080',
+    port: process.env.PORT || '3000',
     railway: process.env.RAILWAY_ENVIRONMENT ? 'production' : 'local'
   });
 });
@@ -215,14 +215,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 app.use(express.static('public'));
 
-// Root route - Railway fallback
+// Root route - redirect to login page
 app.get('/', (req, res) => {
-  // If this is a health check from Railway, return simple OK
-  if (req.headers['user-agent']?.includes('Railway') || req.path === '/health') {
-    res.status(200).send('OK');
-    return;
-  }
-  // Otherwise redirect to login
   res.redirect('/auth/login');
 });
 
@@ -328,12 +322,8 @@ server.on('error', (err: any) => {
 // Add error handling middleware at the end
 app.use(errorLogger);
 
-// Railway fallback middleware - catch any missed requests
+// 404 handler - catch any missed requests
 app.use((req, res) => {
-  if (req.path === '/health' || req.headers['user-agent']?.includes('Railway')) {
-    res.status(200).send('OK');
-    return;
-  }
   res.status(404).json({ error: 'Not found' });
 });
 

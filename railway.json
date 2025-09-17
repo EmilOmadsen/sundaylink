@@ -4,9 +4,9 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node railway-indestructible.js",
+    "startCommand": "npm run build && npm start",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 300000,
+    "healthcheckTimeout": 60000,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
