@@ -14,9 +14,12 @@ if (missingVars.length > 0) {
   // Set default values
   if (!process.env.DATABASE_PATH) {
     // Use Railway's persistent storage if available, otherwise local path
-    process.env.DATABASE_PATH = process.env.RAILWAY_ENVIRONMENT 
-      ? '/mnt/data/soundlink-lite.db' 
-      : './db/soundlink-lite.db';
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      // Railway persistent storage - ensure directory exists
+      process.env.DATABASE_PATH = '/app/data/soundlink-lite.db';
+    } else {
+      process.env.DATABASE_PATH = './db/soundlink-lite.db';
+    }
   }
   if (!process.env.JWT_SECRET) {
     process.env.JWT_SECRET = 'sunday-link-jwt-secret-key-2024-change-in-production';
@@ -147,12 +150,25 @@ process.on('uncaughtException', (err) => {
 try {
   const dbPath = process.env.DATABASE_PATH || './db/soundlink-lite.db';
   const dbDir = path.dirname(dbPath);
+  console.log(`📁 Database directory: ${dbDir}`);
+  console.log(`📄 Database file: ${dbPath}`);
+  
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
-    console.log(`📁 Created database directory: ${dbDir}`);
+    console.log(`✅ Created database directory: ${dbDir}`);
+  } else {
+    console.log(`✅ Database directory exists: ${dbDir}`);
   }
+  
+  // Check if we can write to the directory
+  const testFile = path.join(dbDir, 'test-write.tmp');
+  fs.writeFileSync(testFile, 'test');
+  fs.unlinkSync(testFile);
+  console.log(`✅ Database directory is writable`);
+  
 } catch (error) {
-  console.warn('⚠️ Could not create database directory:', error instanceof Error ? error.message : 'Unknown error');
+  console.error('❌ Database directory issue:', error instanceof Error ? error.message : 'Unknown error');
+  console.log('⚠️ This may cause database initialization to fail');
 }
 
 // Initialize database and run migrations BEFORE starting server
@@ -297,24 +313,23 @@ async function startServer() {
     app.use('/', clickRoutes); // Click tracking routes (no /api prefix for clean URLs)
     console.log('✅ Click tracking routes mounted');
     
-    // Only register database-dependent routes if database is ready
+    // ALWAYS register API routes - let them handle database errors gracefully
+    console.log('📋 Registering API routes (campaigns, metrics)...');
+    
+    console.log('📋 Importing campaigns API route...');
+    const campaignRoutes = (await import('./routes/campaigns')).default;
+    app.use('/api/campaigns', campaignRoutes);
+    console.log('✅ Campaigns API routes mounted at /api/campaigns');
+    
+    console.log('📋 Importing metrics API route...');
+    const metricsRoutes = (await import('./routes/metrics')).default;
+    app.use('/api/metrics', metricsRoutes);
+    console.log('✅ Metrics API routes mounted at /api/metrics');
+    
     if (dbInitialized) {
-      console.log('📋 Database ready - registering database-dependent API routes...');
-      
-      console.log('📋 Importing campaigns API route...');
-      const campaignRoutes = (await import('./routes/campaigns')).default;
-      app.use('/api/campaigns', campaignRoutes);
-      console.log('✅ Campaigns API routes mounted');
-      
-      console.log('📋 Importing metrics API route...');
-      const metricsRoutes = (await import('./routes/metrics')).default;
-      app.use('/api/metrics', metricsRoutes);
-      console.log('✅ Metrics API routes mounted');
-      
-      console.log('✅ All routes (including database-dependent) registered successfully');
+      console.log('✅ All routes registered successfully (database ready)');
     } else {
-      console.log('⚠️ Database not ready - skipping database-dependent API routes');
-      console.log('✅ Essential routes registered successfully');
+      console.log('⚠️ All routes registered (database not ready - API routes will handle errors)');
     }
   } catch (error) {
     console.error('❌ Critical error importing routes:', error instanceof Error ? error.message : 'Unknown error');
