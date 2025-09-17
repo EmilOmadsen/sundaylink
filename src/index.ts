@@ -200,6 +200,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 app.use(express.static('public'));
 
+// Favicon route - prevent 404 errors
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end(); // No Content - prevents 404
+});
+
+// Robots.txt route - prevent 404 errors
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send('User-agent: *\nDisallow:');
+});
+
 // Root route - redirect to login page
 app.get('/', (req, res) => {
   res.redirect('/auth/login');
