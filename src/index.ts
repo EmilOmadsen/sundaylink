@@ -15,8 +15,8 @@ if (missingVars.length > 0) {
   if (!process.env.DATABASE_PATH) {
     // Use Railway's persistent storage if available, otherwise local path
     if (process.env.RAILWAY_ENVIRONMENT) {
-      // Railway persistent storage - ensure directory exists
-      process.env.DATABASE_PATH = '/app/data/soundlink-lite.db';
+      // Railway: use current directory for database (Railway filesystem is writable)
+      process.env.DATABASE_PATH = './db/soundlink-lite.db';
     } else {
       process.env.DATABASE_PATH = './db/soundlink-lite.db';
     }
@@ -187,8 +187,14 @@ async function initializeDatabase() {
     return true;
   } catch (error) {
     console.error('❌ Database initialization failed:', error instanceof Error ? error.message : 'Unknown error');
-    console.log('⚠️ Continuing without database - health checks should still work');
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+    console.log('⚠️ Continuing without database - API will return errors but app will still work');
     console.log('💡 Check DATABASE_PATH environment variable and database permissions');
+    
+    // On Railway, try to continue anyway - the app should still serve the frontend
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      console.log('🚂 Railway detected - app will continue to serve frontend despite database issues');
+    }
     return false;
   }
 }
