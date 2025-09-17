@@ -26,24 +26,49 @@ export interface LoginData {
 }
 
 class AuthService {
-  private insertUser = db.prepare(`
-    INSERT INTO users (email, password_hash, display_name)
-    VALUES (?, ?, ?)
-  `);
+  private _insertUser: any = null;
+  private _getUserByEmail: any = null;
+  private _getUserById: any = null;
+  private _updateSpotifyConnection: any = null;
 
-  private getUserByEmail = db.prepare(`
-    SELECT * FROM users WHERE email = ? AND expires_at > datetime('now')
-  `);
+  private get insertUser() {
+    if (!this._insertUser) {
+      this._insertUser = db.prepare(`
+        INSERT INTO users (email, password_hash, display_name)
+        VALUES (?, ?, ?)
+      `);
+    }
+    return this._insertUser;
+  }
 
-  private getUserById = db.prepare(`
-    SELECT * FROM users WHERE id = ? AND expires_at > datetime('now')
-  `);
+  private get getUserByEmail() {
+    if (!this._getUserByEmail) {
+      this._getUserByEmail = db.prepare(`
+        SELECT * FROM users WHERE email = ? AND expires_at > datetime('now')
+      `);
+    }
+    return this._getUserByEmail;
+  }
 
-  private updateSpotifyConnection = db.prepare(`
-    UPDATE users 
-    SET spotify_user_id = ?, refresh_token_encrypted = ?, is_spotify_connected = 1
-    WHERE id = ?
-  `);
+  private get getUserById() {
+    if (!this._getUserById) {
+      this._getUserById = db.prepare(`
+        SELECT * FROM users WHERE id = ? AND expires_at > datetime('now')
+      `);
+    }
+    return this._getUserById;
+  }
+
+  private get updateSpotifyConnection() {
+    if (!this._updateSpotifyConnection) {
+      this._updateSpotifyConnection = db.prepare(`
+        UPDATE users 
+        SET spotify_user_id = ?, refresh_token_encrypted = ?, is_spotify_connected = 1
+        WHERE id = ?
+      `);
+    }
+    return this._updateSpotifyConnection;
+  }
 
   async register(data: CreateUserData): Promise<User> {
     // Check if user already exists
