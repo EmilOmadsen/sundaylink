@@ -109,9 +109,6 @@ import dashboardRoutes from './routes/dashboard';
 import createCampaignRoutes from './routes/create-campaign';
 import advancedAnalyticsRoutes from './routes/advanced-analytics';
 
-// Import services
-import pollingService from './services/polling';
-import cleanupService from './services/cleanup';
 import MigrationRunner from './utils/migrate';
 
 const app = express();
@@ -132,9 +129,9 @@ try {
   console.warn('⚠️ Could not create database directory:', error instanceof Error ? error.message : 'Unknown error');
 }
 
-// Initialize database connection and run migrations
-console.log('🔄 Initializing database and running migrations...');
-(async () => {
+// Initialize database and run migrations BEFORE starting server
+async function initializeDatabase() {
+  console.log('🔄 Initializing database and running migrations...');
   try {
     // Import database connection (this will establish the connection with PRAGMAs)
     const { getDatabaseConnection } = await import('./utils/database');
@@ -145,12 +142,14 @@ console.log('🔄 Initializing database and running migrations...');
     const migrationRunner = new MigrationRunner();
     await migrationRunner.run();
     console.log('✅ Database initialization and migrations completed successfully');
+    return true;
   } catch (error) {
     console.error('❌ Database initialization failed:', error instanceof Error ? error.message : 'Unknown error');
     console.log('⚠️ Continuing without database - health checks should still work');
-    console.log('💡 Check DB_PATH environment variable and database permissions');
+    console.log('💡 Check DATABASE_PATH environment variable and database permissions');
+    return false;
   }
-})();
+}
 
 // Health check endpoint - Railway compatible (no dependencies, cannot throw)
 // MUST be first route before any middleware
@@ -240,84 +239,96 @@ app.use('/advanced-analytics', advancedAnalyticsRoutes);
 // Click tracking routes (no /api prefix for clean URLs)
 app.use('/', clickRoutes);
 
-const server = app.listen(PORT, "0.0.0.0", () => {
-  // Railway-specific logging
-  console.log(`🚀 Railway Deployment Ready`);
-  console.log(`📡 Server listening on port ${PORT}`);
-  console.log(`🌐 Binding to 0.0.0.0 (all interfaces)`);
-  console.log(`🏥 Health check available at /health`);
+// Start server AFTER database initialization
+async function startServer() {
+  // Initialize database first
+  const dbInitialized = await initializeDatabase();
   
-  logger.info(`Sunday Link server started successfully`, {
-    port: PORT,
-    environment: process.env.NODE_ENV || 'development',
-    nodeVersion: process.version,
-    platform: process.platform,
-    host: "0.0.0.0",
-    railway: process.env.RAILWAY_ENVIRONMENT || 'local',
-    startupDelay: STARTUP_DELAY
-  });
-  
-  logger.info(`Server endpoints available`, {
-    dashboard: `http://localhost:${PORT}/dashboard`,
-    login: `http://localhost:${PORT}/auth/login`,
-    health: `http://localhost:${PORT}/health`,
-    analytics: `http://localhost:${PORT}/advanced-analytics`
-  });
-  
-  // Railway-specific startup delay
-  if (STARTUP_DELAY > 0) {
-    console.log(`⏳ Railway startup delay: ${STARTUP_DELAY}ms`);
-    setTimeout(() => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    // Railway-specific logging
+    console.log(`🚀 Railway Deployment Ready`);
+    console.log(`📡 Server listening on port ${PORT}`);
+    console.log(`🌐 Binding to 0.0.0.0 (all interfaces)`);
+    console.log(`🏥 Health check available at /health`);
+    console.log(`🗄️ Database initialized: ${dbInitialized ? '✅' : '❌'}`);
+    
+    logger.info(`Sunday Link server started successfully`, {
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development',
+      nodeVersion: process.version,
+      platform: process.platform,
+      host: "0.0.0.0",
+      railway: process.env.RAILWAY_ENVIRONMENT || 'local',
+      startupDelay: STARTUP_DELAY,
+      databaseInitialized: dbInitialized
+    });
+    
+    logger.info(`Server endpoints available`, {
+      dashboard: `http://localhost:${PORT}/dashboard`,
+      login: `http://localhost:${PORT}/auth/login`,
+      health: `http://localhost:${PORT}/health`,
+      analytics: `http://localhost:${PORT}/advanced-analytics`
+    });
+    
+    // Railway-specific startup delay
+    if (STARTUP_DELAY > 0) {
+      console.log(`⏳ Railway startup delay: ${STARTUP_DELAY}ms`);
+      setTimeout(() => {
+        startBackgroundServices();
+      }, STARTUP_DELAY);
+    } else {
       startBackgroundServices();
-    }, STARTUP_DELAY);
-  } else {
-    startBackgroundServices();
-  }
-  
-  function startBackgroundServices() {
-    // Skip background services on Railway to ensure health checks work
-    if (IS_RAILWAY) {
-      console.log(`🚂 Railway detected - skipping background services for health check reliability`);
-      console.log(`✅ Railway deployment ready - health checks should pass`);
-      console.log(`🏥 Health endpoints: /health, /healthz, /ping`);
-      return;
     }
     
-    // Start background services (with error handling to prevent startup crashes)
-    logger.info('Starting background services...');
-    try {
-      pollingService.start();
-      cleanupService.start();
-      logManager.scheduleLogManagement();
-      logger.info('All services started successfully!');
-      console.log(`✅ All services ready - Railway health checks should pass`);
-    } catch (error) {
-      logger.error('Some background services failed to start, but server is still running', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      console.log(`⚠️ Some services failed, but server is still running`);
-      // Don't crash the server if background services fail
+    function startBackgroundServices() {
+      // Skip background services on Railway to ensure health checks work
+      if (IS_RAILWAY) {
+        console.log(`🚂 Railway detected - skipping background services for health check reliability`);
+        console.log(`✅ Railway deployment ready - health checks should pass`);
+        console.log(`🏥 Health endpoints: /health, /healthz, /ping`);
+        return;
+      }
+      
+      // Only start background services if database is initialized
+      if (!dbInitialized) {
+        console.log(`⚠️ Database not initialized - skipping background services`);
+        return;
+      }
+      
+      // Start background services (with error handling to prevent startup crashes)
+      logger.info('Starting background services...');
+      try {
+        // Import services only after database is ready
+        import('./services/polling').then(({ default: pollingService }) => {
+          pollingService.start();
+        }).catch(err => {
+          logger.error('Failed to start polling service', { error: err.message });
+        });
+        
+        import('./services/cleanup').then(({ default: cleanupService }) => {
+          cleanupService.start();
+        }).catch(err => {
+          logger.error('Failed to start cleanup service', { error: err.message });
+        });
+        
+        logManager.scheduleLogManagement();
+        logger.info('All services started successfully!');
+        console.log(`✅ All services ready - Railway health checks should pass`);
+      } catch (error) {
+        logger.error('Some background services failed to start, but server is still running', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        console.log(`⚠️ Some services failed, but server is still running`);
+        // Don't crash the server if background services fail
+      }
     }
-  }
-});
+  });
+  
+  return server;
+}
 
-// Handle EADDRINUSE gracefully
-server.on('error', (err: any) => {
-  if (err.code === 'EADDRINUSE') {
-    logger.error(`Port ${PORT} is already in use`, {
-      port: PORT,
-      error: err.message,
-      suggestion: `Run: lsof -ti:${PORT} | xargs kill -9`
-    });
-    process.exit(1);
-  } else {
-    logger.error('Server error occurred', {
-      error: err.message,
-      code: err.code
-    }, err);
-    process.exit(1);
-  }
-});
+// Start the server
+const serverPromise = startServer();
 
 // Add error handling middleware at the end
 app.use(errorLogger);
@@ -327,21 +338,47 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    logger.info('Server closed successfully');
-    process.exit(0);
+// Handle server startup and shutdown
+serverPromise.then((server) => {
+  // Handle EADDRINUSE gracefully
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`Port ${PORT} is already in use`, {
+        port: PORT,
+        error: err.message,
+        suggestion: `Run: lsof -ti:${PORT} | xargs kill -9`
+      });
+      process.exit(1);
+    } else {
+      logger.error('Server error occurred', {
+        error: err.message,
+        code: err.code
+      }, err);
+      process.exit(1);
+    }
   });
-});
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    logger.info('Server closed successfully');
-    process.exit(0);
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully...');
+    server.close(() => {
+      logger.info('Server closed successfully');
+      process.exit(0);
+    });
   });
+
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down gracefully...');
+    server.close(() => {
+      logger.info('Server closed successfully');
+      process.exit(0);
+    });
+  });
+}).catch((error) => {
+  logger.error('Failed to start server', {
+    error: error instanceof Error ? error.message : 'Unknown error'
+  });
+  process.exit(1);
 });
 
 export default app;
