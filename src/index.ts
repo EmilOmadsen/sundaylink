@@ -57,9 +57,15 @@ if (IS_RAILWAY) {
   console.log(`🚂 Railway Environment: ${process.env.RAILWAY_ENVIRONMENT || 'production'}`);
   console.log(`🔧 Railway Project: ${process.env.RAILWAY_PROJECT_NAME || 'unknown'}`);
   console.log(`🌍 Railway Service: ${process.env.RAILWAY_SERVICE_NAME || 'unknown'}`);
+  console.log(`🌐 Railway Region: ${process.env.RAILWAY_REGION || 'unknown'}`);
   console.log(`📊 Railway Port: ${process.env.PORT || 'not set'}`);
   console.log(`🗄️ Database Path: ${process.env.DATABASE_PATH || './db/soundlink-lite.db'}`);
-  console.log(`🎯 Railway Mode: Bulletproof startup for health check reliability`);
+  console.log(`🎯 Railway Mode: Bulletproof startup for EU West region`);
+  
+  // EU West specific optimizations
+  if (process.env.RAILWAY_REGION && process.env.RAILWAY_REGION.includes('europe-west')) {
+    console.log(`🇪🇺 EU West region detected - applying region-specific optimizations`);
+  }
 }
 
 import fs from 'fs';
@@ -77,6 +83,40 @@ import MigrationRunner from './utils/migrate';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
+
+// Helper function to log all registered routes
+function logRegisteredRoutes() {
+  console.log('📋 Registered Routes:');
+  const routes: string[] = [];
+  
+  function extractRoutes(stack: any[], basePath = '') {
+    stack.forEach((middleware) => {
+      if (middleware.route) {
+        // Direct route
+        const methods = Object.keys(middleware.route.methods).join(',').toUpperCase();
+        routes.push(`${methods} ${basePath}${middleware.route.path}`);
+      } else if (middleware.name === 'router' && middleware.handle?.stack) {
+        // Router middleware
+        const routerPath = middleware.regexp.source
+          .replace('\\/?', '')
+          .replace('\\/', '/')
+          .replace('^', '')
+          .replace('$', '')
+          .replace('(?=\\/|$)', '');
+        
+        const cleanPath = routerPath === '\\/' ? '' : routerPath;
+        extractRoutes(middleware.handle.stack, basePath + cleanPath);
+      }
+    });
+  }
+  
+  if (app._router?.stack) {
+    extractRoutes(app._router.stack);
+  }
+  
+  routes.forEach(route => console.log(`  ✓ ${route}`));
+  console.log(`📊 Total routes: ${routes.length}`);
+}
 
 // Process guards for better error handling
 process.on('unhandledRejection', (err) => {
@@ -172,6 +212,11 @@ app.set('trust proxy', true);
 // Add request logging middleware
 app.use(requestLogger);
 
+// Basic middleware setup
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: true,
@@ -192,9 +237,6 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 app.use(cors());
-app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from root directory and public directory
 app.use(express.static('.'));
@@ -211,9 +253,19 @@ app.get('/robots.txt', (req, res) => {
   res.send('User-agent: *\nDisallow:');
 });
 
-// Root route - redirect to login page
+// Root route - return JSON with ok: true
 app.get('/', (req, res) => {
-  res.redirect('/auth/login');
+  res.json({ 
+    ok: true, 
+    message: 'Sundaylink API is running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      auth: '/auth/login',
+      dashboard: '/dashboard',
+      health: '/health'
+    }
+  });
 });
 
 // Start server AFTER database initialization
@@ -224,40 +276,59 @@ async function startServer() {
   const dbInitialized = await initializeDatabase();
   
   // Import and register routes - ALWAYS register routes, even if database fails
-  console.log('📋 Importing routes...');
+  console.log('📋 Importing and mounting routes...');
+  
   try {
-    // Import routes dynamically - but always register them
+    // Import auth routes first (most important)
+    console.log('📋 Importing auth route...');
     const authRoutes = (await import('./routes/auth')).default;
-    const simpleAuthRoutes = (await import('./routes/simple-auth')).default;
-    const dashboardRoutes = (await import('./routes/dashboard')).default;
-    const createCampaignRoutes = (await import('./routes/create-campaign')).default;
-    const advancedAnalyticsRoutes = (await import('./routes/advanced-analytics')).default;
-    const clickRoutes = (await import('./routes/clicks')).default;
-    
-    // Register essential routes first (auth, dashboard, etc.)
     app.use('/auth', authRoutes);
-    app.use('/simple-auth', simpleAuthRoutes);
+    console.log('✅ app.use("/auth", authRouter) - Auth routes mounted');
+    
+    // Import other essential routes
+    console.log('📋 Importing dashboard route...');
+    const dashboardRoutes = (await import('./routes/dashboard')).default;
     app.use('/dashboard', dashboardRoutes);
+    console.log('✅ Dashboard routes mounted');
+    
+    console.log('📋 Importing create-campaign route...');
+    const createCampaignRoutes = (await import('./routes/create-campaign')).default;
     app.use('/create-campaign', createCampaignRoutes);
+    console.log('✅ Create campaign routes mounted');
+    
+    console.log('📋 Importing advanced-analytics route...');
+    const advancedAnalyticsRoutes = (await import('./routes/advanced-analytics')).default;
     app.use('/advanced-analytics', advancedAnalyticsRoutes);
+    console.log('✅ Advanced analytics routes mounted');
+    
+    console.log('📋 Importing click tracking routes...');
+    const clickRoutes = (await import('./routes/clicks')).default;
     app.use('/', clickRoutes); // Click tracking routes (no /api prefix for clean URLs)
+    console.log('✅ Click tracking routes mounted');
     
     // Only register database-dependent routes if database is ready
     if (dbInitialized) {
-      console.log('📋 Database ready - registering database-dependent routes...');
-      const campaignRoutes = (await import('./routes/campaigns')).default;
-      const metricsRoutes = (await import('./routes/metrics')).default;
+      console.log('📋 Database ready - registering database-dependent API routes...');
       
+      console.log('📋 Importing campaigns API route...');
+      const campaignRoutes = (await import('./routes/campaigns')).default;
       app.use('/api/campaigns', campaignRoutes);
+      console.log('✅ Campaigns API routes mounted');
+      
+      console.log('📋 Importing metrics API route...');
+      const metricsRoutes = (await import('./routes/metrics')).default;
       app.use('/api/metrics', metricsRoutes);
+      console.log('✅ Metrics API routes mounted');
+      
       console.log('✅ All routes (including database-dependent) registered successfully');
     } else {
       console.log('⚠️ Database not ready - skipping database-dependent API routes');
-      console.log('✅ Essential routes (auth, dashboard, etc.) registered successfully');
+      console.log('✅ Essential routes registered successfully');
     }
   } catch (error) {
-    console.error('❌ Failed to import routes:', error instanceof Error ? error.message : 'Unknown error');
-    console.log('⚠️ Server will start with health checks only');
+    console.error('❌ Critical error importing routes:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.log('⚠️ Server will start with health checks and basic routes only');
   }
 
   // Add error handling middleware at the end
@@ -276,6 +347,16 @@ async function startServer() {
     console.log(`🏥 Health check available at /health`);
     console.log(`🗄️ Database initialized: ${dbInitialized ? '✅' : '❌'}`);
     
+    // Print Spotify OAuth configuration
+    console.log('🎵 Spotify OAuth Configuration:');
+    console.log(`📱 Client ID: ${process.env.SPOTIFY_CLIENT_ID ? process.env.SPOTIFY_CLIENT_ID.substring(0, 8) + '...' : 'NOT SET'}`);
+    console.log(`🔗 Redirect URI: ${process.env.SPOTIFY_REDIRECT_URI || 'NOT SET'}`);
+    console.log(`🔐 Client Secret: ${process.env.SPOTIFY_CLIENT_SECRET ? 'SET' : 'NOT SET'}`);
+    console.log(`🔧 Base path "/auth" mounted for OAuth flow`);
+    
+    // Log all registered routes
+    logRegisteredRoutes();
+    
     logger.info(`Bulletproof Sunday Link server started successfully`, {
       port: PORT,
       environment: process.env.NODE_ENV || 'development',
@@ -290,7 +371,8 @@ async function startServer() {
       dashboard: `http://localhost:${PORT}/dashboard`,
       login: `http://localhost:${PORT}/auth/login`,
       health: `http://localhost:${PORT}/health`,
-      analytics: `http://localhost:${PORT}/advanced-analytics`
+      analytics: `http://localhost:${PORT}/advanced-analytics`,
+      callback: `http://localhost:${PORT}/auth/spotify/callback`
     });
     
     // Start background services only if database is ready and not on Railway

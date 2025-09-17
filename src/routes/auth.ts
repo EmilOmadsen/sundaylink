@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import authService from '../services/auth';
 import spotifyService from '../services/spotify';
 import sessionService from '../services/sessions';
@@ -14,8 +15,192 @@ declare global {
 
 const router = express.Router();
 
-// Landing page with login/register forms
+// Log Spotify configuration at startup
+console.log('🎵 Spotify OAuth Configuration:');
+console.log(`📱 Client ID: ${process.env.SPOTIFY_CLIENT_ID ? process.env.SPOTIFY_CLIENT_ID.substring(0, 8) + '...' : 'NOT SET'}`);
+console.log(`🔗 Redirect URI: ${process.env.SPOTIFY_REDIRECT_URI || 'NOT SET'}`);
+console.log(`🔐 Client Secret: ${process.env.SPOTIFY_CLIENT_SECRET ? 'SET' : 'NOT SET'}`);
+
+// Spotify OAuth login - redirect to Spotify authorization
 router.get('/login', (req, res) => {
+  console.log('🔐 GET /auth/login - Redirecting to Spotify OAuth...');
+  
+  // Generate random state for security
+  const state = crypto.randomBytes(16).toString('hex');
+  
+  // Store state in session/cookie for verification
+  res.cookie('oauth_state', state, { 
+    httpOnly: true, 
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 10 * 60 * 1000 // 10 minutes
+  });
+  
+  // Store click_id if present
+  const clickId = req.query.click_id || req.cookies.click_id;
+  if (clickId) {
+    res.cookie('click_id', clickId, { 
+      httpOnly: true, 
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+  }
+  
+  // Build Spotify authorization URL
+  const scopes = [
+    'user-read-private',
+    'user-read-email', 
+    'user-read-playback-state',
+    'user-read-currently-playing',
+    'user-read-recently-played',
+    'user-follow-read',
+    'playlist-read-private'
+  ].join(' ');
+  
+  const spotifyAuthUrl = new URL('https://accounts.spotify.com/authorize');
+  spotifyAuthUrl.searchParams.set('response_type', 'code');
+  spotifyAuthUrl.searchParams.set('client_id', process.env.SPOTIFY_CLIENT_ID || '');
+  spotifyAuthUrl.searchParams.set('scope', scopes);
+  spotifyAuthUrl.searchParams.set('redirect_uri', process.env.SPOTIFY_REDIRECT_URI || '');
+  spotifyAuthUrl.searchParams.set('state', state);
+  
+  console.log(`🚀 Redirecting to Spotify: ${spotifyAuthUrl.toString()}`);
+  res.redirect(spotifyAuthUrl.toString());
+});
+
+// Spotify OAuth callback
+router.get('/spotify/callback', async (req, res) => {
+  console.log('🔄 GET /auth/spotify/callback - Processing OAuth callback...');
+  console.log('📋 Query params:', req.query);
+  
+  const { code, state, error } = req.query;
+  
+  // Handle OAuth error
+  if (error) {
+    console.error('❌ Spotify OAuth error:', error);
+    return res.status(400).json({
+      error: 'Spotify authorization failed',
+      details: error,
+      message: 'Please try logging in again'
+    });
+  }
+  
+  // Verify state parameter
+  const storedState = req.cookies.oauth_state;
+  if (!state || state !== storedState) {
+    console.error('❌ Invalid state parameter:', { received: state, expected: storedState });
+    return res.status(400).json({
+      error: 'Invalid state parameter',
+      message: 'Security validation failed. Please try again.'
+    });
+  }
+  
+  // Exchange code for access token
+  if (!code) {
+    console.error('❌ No authorization code received');
+    return res.status(400).json({
+      error: 'No authorization code',
+      message: 'Authorization code is required'
+    });
+  }
+  
+  try {
+    console.log('🔄 Exchanging code for tokens...');
+    
+    // Exchange authorization code for tokens
+    const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code as string,
+        redirect_uri: process.env.SPOTIFY_REDIRECT_URI || '',
+      })
+    });
+    
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      console.error('❌ Token exchange failed:', tokenResponse.status, errorData);
+      return res.status(400).json({
+        error: 'Token exchange failed',
+        details: errorData,
+        message: 'Failed to authenticate with Spotify'
+      });
+    }
+    
+    const tokens = await tokenResponse.json();
+    console.log('✅ Tokens received successfully');
+    
+    // Get user profile from Spotify
+    const profileResponse = await fetch('https://api.spotify.com/v1/me', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+    
+    if (!profileResponse.ok) {
+      console.error('❌ Failed to get user profile');
+      return res.status(400).json({
+        error: 'Failed to get user profile',
+        message: 'Could not retrieve user information from Spotify'
+      });
+    }
+    
+    const profile = await profileResponse.json();
+    console.log('👤 User profile:', { id: profile.id, email: profile.email });
+    
+    // Register or login user
+    let user = authService.getByEmail(profile.email);
+    if (!user) {
+      console.log('👤 Creating new user...');
+      user = await authService.register({
+        email: profile.email,
+        password: 'spotify-oauth', // Placeholder for OAuth users
+        display_name: profile.display_name
+      });
+    }
+    
+    // Connect Spotify account
+    if (user) {
+      await authService.connectSpotify({
+        user_id: user.id,
+        spotify_id: profile.id,
+        access_token: tokens.access_token,
+        encrypted_refresh_token: tokens.refresh_token, // This will be encrypted by the service
+        token_expires_at: new Date(Date.now() + tokens.expires_in * 1000)
+      });
+    }
+    
+    // Generate JWT token
+    const token = authService.generateToken(user!);
+    
+    // Set auth cookie
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    
+    // Clear OAuth state cookie
+    res.clearCookie('oauth_state');
+    
+    console.log('✅ User authenticated successfully');
+    
+    // Redirect to dashboard
+    res.redirect('/dashboard');
+    
+  } catch (error) {
+    console.error('❌ OAuth callback error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Something went wrong during authentication'
+    });
+  }
+});
+
+// Legacy login page (for testing/fallback)
+router.get('/legacy-login', (req, res) => {
   const clickId = req.cookies.click_id;
   
   res.send(`
