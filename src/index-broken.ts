@@ -59,24 +59,15 @@ if (IS_RAILWAY) {
   console.log(`🌍 Railway Service: ${process.env.RAILWAY_SERVICE_NAME || 'unknown'}`);
   console.log(`📊 Railway Port: ${process.env.PORT || 'not set'}`);
   console.log(`🗄️ Database Path: ${process.env.DATABASE_PATH || './db/soundlink-lite.db'}`);
-  console.log(`🎯 Railway Mode: Bulletproof startup for health check reliability`);
+  console.log(`🎯 Railway Mode: Minimal startup for health check reliability`);
 }
-
-import fs from 'fs';
-import path from 'path';
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
 
 // Import logger after env is loaded
 import logger from './utils/logger';
 import logManager from './utils/logManager';
 import { requestLogger, errorLogger } from './middleware/requestLogger';
-import MigrationRunner from './utils/migrate';
-
-const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+import fs from 'fs';
+import path from 'path';
 
 // Process guards for better error handling
 process.on('unhandledRejection', (err) => {
@@ -102,6 +93,29 @@ process.on('uncaughtException', (err) => {
     process.exit(1);
   }
 });
+
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+
+// Import routes
+import campaignRoutes from './routes/campaigns';
+import clickRoutes from './routes/clicks';
+import authRoutes from './routes/auth';
+import simpleAuthRoutes from './routes/simple-auth';
+import metricsRoutes from './routes/metrics';
+import dashboardRoutes from './routes/dashboard';
+import createCampaignRoutes from './routes/create-campaign';
+import advancedAnalyticsRoutes from './routes/advanced-analytics';
+
+import MigrationRunner from './utils/migrate';
+
+const app = express();
+const PORT = parseInt(process.env.PORT || '3000', 10);
+
+// Railway-specific startup delay to ensure all services are ready
+const STARTUP_DELAY = process.env.RAILWAY_STARTUP_DELAY ? parseInt(process.env.RAILWAY_STARTUP_DELAY) : 2000;
 
 // Ensure database directory exists (especially important for Railway)
 try {
@@ -205,69 +219,47 @@ app.get('/', (req, res) => {
   res.redirect('/auth/login');
 });
 
+// API routes
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/metrics', metricsRoutes);
+
+// Auth routes
+app.use('/auth', authRoutes);
+app.use('/simple-auth', simpleAuthRoutes);
+
+// Dashboard route
+app.use('/dashboard', dashboardRoutes);
+
+// Create campaign route
+app.use('/create-campaign', createCampaignRoutes);
+
+// Advanced Analytics route
+app.use('/advanced-analytics', advancedAnalyticsRoutes);
+
+// Click tracking routes (no /api prefix for clean URLs)
+app.use('/', clickRoutes);
+
 // Start server AFTER database initialization
 async function startServer() {
-  console.log('🚀 Starting bulletproof server...');
-  
   // Initialize database first
   const dbInitialized = await initializeDatabase();
   
-  // Only import and register routes AFTER database is ready
-  if (dbInitialized) {
-    console.log('📋 Database ready - importing routes...');
-    try {
-      // Import routes dynamically AFTER database is initialized
-      const authRoutes = (await import('./routes/auth')).default;
-      const simpleAuthRoutes = (await import('./routes/simple-auth')).default;
-      const dashboardRoutes = (await import('./routes/dashboard')).default;
-      const createCampaignRoutes = (await import('./routes/create-campaign')).default;
-      const advancedAnalyticsRoutes = (await import('./routes/advanced-analytics')).default;
-      const clickRoutes = (await import('./routes/clicks')).default;
-      const campaignRoutes = (await import('./routes/campaigns')).default;
-      const metricsRoutes = (await import('./routes/metrics')).default;
-
-      // Register routes
-      app.use('/auth', authRoutes);
-      app.use('/simple-auth', simpleAuthRoutes);
-      app.use('/dashboard', dashboardRoutes);
-      app.use('/create-campaign', createCampaignRoutes);
-      app.use('/advanced-analytics', advancedAnalyticsRoutes);
-      app.use('/api/campaigns', campaignRoutes);
-      app.use('/api/metrics', metricsRoutes);
-      app.use('/', clickRoutes); // Click tracking routes (no /api prefix for clean URLs)
-      
-      console.log('✅ All routes registered successfully');
-    } catch (error) {
-      console.error('❌ Failed to import routes:', error instanceof Error ? error.message : 'Unknown error');
-      console.log('⚠️ Server will start with health checks only');
-    }
-  } else {
-    console.log('⚠️ Database not initialized - server will start with health checks only');
-  }
-
-  // Add error handling middleware at the end
-  app.use(errorLogger);
-
-  // 404 handler - catch any missed requests
-  app.use((req, res) => {
-    res.status(404).json({ error: 'Not found' });
-  });
-  
   const server = app.listen(PORT, "0.0.0.0", () => {
     // Railway-specific logging
-    console.log(`🚀 Bulletproof Railway Deployment Ready`);
+    console.log(`🚀 Railway Deployment Ready`);
     console.log(`📡 Server listening on port ${PORT}`);
     console.log(`🌐 Binding to 0.0.0.0 (all interfaces)`);
     console.log(`🏥 Health check available at /health`);
     console.log(`🗄️ Database initialized: ${dbInitialized ? '✅' : '❌'}`);
     
-    logger.info(`Bulletproof Sunday Link server started successfully`, {
+    logger.info(`Sunday Link server started successfully`, {
       port: PORT,
       environment: process.env.NODE_ENV || 'development',
       nodeVersion: process.version,
       platform: process.platform,
       host: "0.0.0.0",
       railway: process.env.RAILWAY_ENVIRONMENT || 'local',
+      startupDelay: STARTUP_DELAY,
       databaseInitialized: dbInitialized
     });
     
@@ -278,35 +270,76 @@ async function startServer() {
       analytics: `http://localhost:${PORT}/advanced-analytics`
     });
     
-    // Start background services only if database is ready and not on Railway
-    if (dbInitialized && !IS_RAILWAY) {
-      console.log('🔄 Starting background services...');
-      setTimeout(async () => {
-        try {
-          // Import services only after database is ready
-          const pollingService = (await import('./services/polling')).default;
-          const cleanupService = (await import('./services/cleanup')).default;
-          
+    // Railway-specific startup delay
+    if (STARTUP_DELAY > 0) {
+      console.log(`⏳ Railway startup delay: ${STARTUP_DELAY}ms`);
+      setTimeout(() => {
+        startBackgroundServices();
+      }, STARTUP_DELAY);
+    } else {
+      startBackgroundServices();
+    }
+    
+    function startBackgroundServices() {
+      // Skip background services on Railway to ensure health checks work
+      if (IS_RAILWAY) {
+        console.log(`🚂 Railway detected - skipping background services for health check reliability`);
+        console.log(`✅ Railway deployment ready - health checks should pass`);
+        console.log(`🏥 Health endpoints: /health, /healthz, /ping`);
+        return;
+      }
+      
+      // Only start background services if database is initialized
+      if (!dbInitialized) {
+        console.log(`⚠️ Database not initialized - skipping background services`);
+        return;
+      }
+      
+      // Start background services (with error handling to prevent startup crashes)
+      logger.info('Starting background services...');
+      try {
+        // Import services only after database is ready
+        import('./services/polling').then(({ default: pollingService }) => {
           pollingService.start();
+        }).catch(err => {
+          logger.error('Failed to start polling service', { error: err.message });
+        });
+        
+        import('./services/cleanup').then(({ default: cleanupService }) => {
           cleanupService.start();
-          logManager.scheduleLogManagement();
-          
-          logger.info('All background services started successfully!');
-          console.log(`✅ All services ready`);
-        } catch (error) {
-          logger.error('Some background services failed to start, but server is still running', {
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-          console.log(`⚠️ Some services failed, but server is still running`);
-        }
-      }, 2000);
-    } else if (IS_RAILWAY) {
-      console.log(`🚂 Railway detected - skipping background services for health check reliability`);
-      console.log(`✅ Railway deployment ready - health checks should pass`);
-      console.log(`🏥 Health endpoints: /health, /healthz, /ping`);
+        }).catch(err => {
+          logger.error('Failed to start cleanup service', { error: err.message });
+        });
+        
+        logManager.scheduleLogManagement();
+        logger.info('All services started successfully!');
+        console.log(`✅ All services ready - Railway health checks should pass`);
+      } catch (error) {
+        logger.error('Some background services failed to start, but server is still running', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        console.log(`⚠️ Some services failed, but server is still running`);
+        // Don't crash the server if background services fail
+      }
     }
   });
+  
+  return server;
+}
 
+// Start the server
+const serverPromise = startServer();
+
+// Add error handling middleware at the end
+app.use(errorLogger);
+
+// 404 handler - catch any missed requests
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+// Handle server startup and shutdown
+serverPromise.then((server) => {
   // Handle EADDRINUSE gracefully
   server.on('error', (err: any) => {
     if (err.code === 'EADDRINUSE') {
@@ -341,16 +374,10 @@ async function startServer() {
       process.exit(0);
     });
   });
-  
-  return server;
-}
-
-// Start the bulletproof server
-startServer().catch((error) => {
-  logger.error('Failed to start bulletproof server', {
+}).catch((error) => {
+  logger.error('Failed to start server', {
     error: error instanceof Error ? error.message : 'Unknown error'
   });
-  console.error('💥 BULLETPROOF SERVER FAILED TO START:', error);
   process.exit(1);
 });
 
