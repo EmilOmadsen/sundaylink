@@ -223,37 +223,41 @@ async function startServer() {
   // Initialize database first
   const dbInitialized = await initializeDatabase();
   
-  // Only import and register routes AFTER database is ready
-  if (dbInitialized) {
-    console.log('📋 Database ready - importing routes...');
-    try {
-      // Import routes dynamically AFTER database is initialized
-      const authRoutes = (await import('./routes/auth')).default;
-      const simpleAuthRoutes = (await import('./routes/simple-auth')).default;
-      const dashboardRoutes = (await import('./routes/dashboard')).default;
-      const createCampaignRoutes = (await import('./routes/create-campaign')).default;
-      const advancedAnalyticsRoutes = (await import('./routes/advanced-analytics')).default;
-      const clickRoutes = (await import('./routes/clicks')).default;
+  // Import and register routes - ALWAYS register routes, even if database fails
+  console.log('📋 Importing routes...');
+  try {
+    // Import routes dynamically - but always register them
+    const authRoutes = (await import('./routes/auth')).default;
+    const simpleAuthRoutes = (await import('./routes/simple-auth')).default;
+    const dashboardRoutes = (await import('./routes/dashboard')).default;
+    const createCampaignRoutes = (await import('./routes/create-campaign')).default;
+    const advancedAnalyticsRoutes = (await import('./routes/advanced-analytics')).default;
+    const clickRoutes = (await import('./routes/clicks')).default;
+    
+    // Register essential routes first (auth, dashboard, etc.)
+    app.use('/auth', authRoutes);
+    app.use('/simple-auth', simpleAuthRoutes);
+    app.use('/dashboard', dashboardRoutes);
+    app.use('/create-campaign', createCampaignRoutes);
+    app.use('/advanced-analytics', advancedAnalyticsRoutes);
+    app.use('/', clickRoutes); // Click tracking routes (no /api prefix for clean URLs)
+    
+    // Only register database-dependent routes if database is ready
+    if (dbInitialized) {
+      console.log('📋 Database ready - registering database-dependent routes...');
       const campaignRoutes = (await import('./routes/campaigns')).default;
       const metricsRoutes = (await import('./routes/metrics')).default;
-
-      // Register routes
-      app.use('/auth', authRoutes);
-      app.use('/simple-auth', simpleAuthRoutes);
-      app.use('/dashboard', dashboardRoutes);
-      app.use('/create-campaign', createCampaignRoutes);
-      app.use('/advanced-analytics', advancedAnalyticsRoutes);
+      
       app.use('/api/campaigns', campaignRoutes);
       app.use('/api/metrics', metricsRoutes);
-      app.use('/', clickRoutes); // Click tracking routes (no /api prefix for clean URLs)
-      
-      console.log('✅ All routes registered successfully');
-    } catch (error) {
-      console.error('❌ Failed to import routes:', error instanceof Error ? error.message : 'Unknown error');
-      console.log('⚠️ Server will start with health checks only');
+      console.log('✅ All routes (including database-dependent) registered successfully');
+    } else {
+      console.log('⚠️ Database not ready - skipping database-dependent API routes');
+      console.log('✅ Essential routes (auth, dashboard, etc.) registered successfully');
     }
-  } else {
-    console.log('⚠️ Database not initialized - server will start with health checks only');
+  } catch (error) {
+    console.error('❌ Failed to import routes:', error instanceof Error ? error.message : 'Unknown error');
+    console.log('⚠️ Server will start with health checks only');
   }
 
   // Add error handling middleware at the end
