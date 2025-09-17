@@ -20,6 +20,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', true);
 
+// Cookie parser for session handling
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+
 // CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -75,6 +79,117 @@ app.get('/auth/login', (req, res) => {
   
   console.log(`🚀 Redirecting to Spotify: ${spotifyAuthUrl.toString()}`);
   res.redirect(spotifyAuthUrl.toString());
+});
+
+// Spotify OAuth callback
+app.get('/auth/spotify/callback', async (req, res) => {
+  console.log('🔄 GET /auth/spotify/callback - Processing OAuth callback...');
+  console.log('📋 Query params:', req.query);
+  
+  const { code, state, error } = req.query;
+  
+  // Handle OAuth error
+  if (error) {
+    console.error('❌ Spotify OAuth error:', error);
+    return res.status(400).json({
+      error: 'Spotify authorization failed',
+      details: error,
+      message: 'Please try logging in again'
+    });
+  }
+  
+  // Verify state parameter
+  const storedState = req.cookies.oauth_state;
+  if (!state || state !== storedState) {
+    console.error('❌ Invalid state parameter:', { received: state, expected: storedState });
+    return res.status(400).json({
+      error: 'Invalid state parameter',
+      message: 'Security validation failed. Please try again.'
+    });
+  }
+  
+  // Exchange code for access token
+  if (!code) {
+    console.error('❌ No authorization code received');
+    return res.status(400).json({
+      error: 'No authorization code',
+      message: 'Authorization code is required'
+    });
+  }
+  
+  try {
+    console.log('🔄 Exchanging code for tokens...');
+    
+    // Exchange authorization code for tokens
+    const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: process.env.SPOTIFY_REDIRECT_URI || '',
+      })
+    });
+    
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      console.error('❌ Token exchange failed:', tokenResponse.status, errorData);
+      return res.status(400).json({
+        error: 'Token exchange failed',
+        details: errorData,
+        message: 'Failed to authenticate with Spotify'
+      });
+    }
+    
+    const tokens = await tokenResponse.json();
+    console.log('✅ Tokens received successfully');
+    
+    // Get user profile from Spotify
+    const profileResponse = await fetch('https://api.spotify.com/v1/me', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+    
+    if (!profileResponse.ok) {
+      console.error('❌ Failed to get user profile');
+      return res.status(400).json({
+        error: 'Failed to get user profile',
+        message: 'Could not retrieve user information from Spotify'
+      });
+    }
+    
+    const profile = await profileResponse.json();
+    console.log('👤 User profile:', { id: profile.id, email: profile.email });
+    
+    // Create a simple session token
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    
+    // Set auth cookie
+    res.cookie('auth_token', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    
+    // Clear OAuth state cookie
+    res.clearCookie('oauth_state');
+    
+    console.log('✅ User authenticated successfully');
+    
+    // Redirect to dashboard
+    res.redirect('/dashboard');
+    
+  } catch (error) {
+    console.error('❌ OAuth callback error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Something went wrong during authentication'
+    });
+  }
 });
 
 // Campaigns API - ALWAYS works
