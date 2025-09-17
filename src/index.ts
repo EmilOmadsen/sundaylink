@@ -253,19 +253,10 @@ app.get('/robots.txt', (req, res) => {
   res.send('User-agent: *\nDisallow:');
 });
 
-// Root route - return JSON with ok: true
+// Root route - redirect to login page (the actual app)
 app.get('/', (req, res) => {
-  res.json({ 
-    ok: true, 
-    message: 'Sundaylink API is running',
-    version: '1.0.0',
-    timestamp: new Date().toISOString(),
-    endpoints: {
-      auth: '/auth/login',
-      dashboard: '/dashboard',
-      health: '/health'
-    }
-  });
+  console.log('🏠 Root request - redirecting to auth/login');
+  res.redirect('/auth/login');
 });
 
 // Start server AFTER database initialization
