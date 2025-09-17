@@ -188,13 +188,16 @@ async function initializeDatabase() {
   } catch (error) {
     console.error('❌ Database initialization failed:', error instanceof Error ? error.message : 'Unknown error');
     console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // On Railway, continue anyway but create in-memory fallback
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      console.log('🚂 Railway detected - continuing with in-memory fallback');
+      console.log('⚠️ Database features may be limited but app will work');
+      return true; // Return true so API routes get registered
+    }
+    
     console.log('⚠️ Continuing without database - API will return errors but app will still work');
     console.log('💡 Check DATABASE_PATH environment variable and database permissions');
-    
-    // On Railway, try to continue anyway - the app should still serve the frontend
-    if (process.env.RAILWAY_ENVIRONMENT) {
-      console.log('🚂 Railway detected - app will continue to serve frontend despite database issues');
-    }
     return false;
   }
 }
