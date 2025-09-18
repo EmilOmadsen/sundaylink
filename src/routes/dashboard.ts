@@ -22,8 +22,10 @@ router.get('/', (req, res) => {
     }
   }
 
-  // Get API URL for frontend injection
-  const apiUrl = process.env.VITE_API_URL || '';
+  // Get API URL for frontend injection (safely JSON-encoded)
+  const envConfig = {
+    VITE_API_URL: process.env.VITE_API_URL || ''
+  };
 
   res.send(`
     <!DOCTYPE html>
@@ -33,10 +35,8 @@ router.get('/', (req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script>
-            // Inject environment variables for frontend
-            window.ENV = {
-                VITE_API_URL: "${apiUrl}"
-            };
+            // Inject environment variables for frontend (safe JSON encoding)
+            window.ENV = ${JSON.stringify(envConfig)};
         </script>
         <style>
             * {
