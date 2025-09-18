@@ -409,6 +409,9 @@ async function startServer() {
         // Ensure clicks table exists
         if (clickDb) {
           try {
+            // Disable foreign key constraints temporarily
+            clickDb.pragma('foreign_keys = OFF');
+            
             clickDb.exec(`
               CREATE TABLE IF NOT EXISTS clicks (
                 id TEXT PRIMARY KEY,
@@ -425,7 +428,7 @@ async function startServer() {
                 expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
               )
             `);
-            console.log('✅ Clicks table ensured');
+            console.log('✅ Clicks table ensured (FK constraints disabled)');
           } catch (tableError) {
             console.error('❌ Failed to create clicks table:', tableError);
           }
@@ -496,7 +499,10 @@ async function startServer() {
       const clickDb = (await import('./services/database')).default;
       const clickService = (await import('./services/clicks')).default;
       
-      // Ensure clicks table exists
+      // Disable foreign key constraints temporarily
+      clickDb.pragma('foreign_keys = OFF');
+      
+      // Ensure clicks table exists (without foreign key constraints for now)
       clickDb.exec(`
         CREATE TABLE IF NOT EXISTS clicks (
           id TEXT PRIMARY KEY,
