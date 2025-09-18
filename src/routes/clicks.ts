@@ -3,6 +3,38 @@ import clickService from '../services/clicks';
 
 const router = express.Router();
 
+// Debug route to test campaign lookup
+router.get('/debug/:campaignId', async (req, res) => {
+  const { campaignId } = req.params;
+  console.log(`🔍 Debug: Looking for campaign ${campaignId}`);
+  
+  try {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    console.log(`🔍 Debug: API URL: ${baseUrl}/api/campaigns`);
+    
+    const response = await fetch(`${baseUrl}/api/campaigns`);
+    console.log(`🔍 Debug: API response status: ${response.status}`);
+    
+    const campaigns = await response.json();
+    console.log(`🔍 Debug: Found ${campaigns.length} campaigns:`, campaigns.map((c: any) => c.id));
+    
+    const campaign = campaigns.find((c: any) => c.id === campaignId);
+    console.log(`🔍 Debug: Campaign found:`, !!campaign);
+    
+    res.json({
+      campaignId,
+      apiUrl: `${baseUrl}/api/campaigns`,
+      totalCampaigns: campaigns.length,
+      campaignIds: campaigns.map((c: any) => c.id),
+      campaignFound: !!campaign,
+      campaign: campaign || null
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
 // Database connection (same as campaigns route)
 let db: any = null;
 let campaignStorage: any[] = [];
