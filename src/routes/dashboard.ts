@@ -22,6 +22,9 @@ router.get('/', (req, res) => {
     }
   }
 
+  // Get API URL for frontend injection
+  const apiUrl = process.env.VITE_API_URL || '';
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -32,7 +35,7 @@ router.get('/', (req, res) => {
         <script>
             // Inject environment variables for frontend
             window.ENV = {
-                VITE_API_URL: "${process.env.VITE_API_URL || ''}"
+                VITE_API_URL: "${apiUrl}"
             };
         </script>
         <style>
