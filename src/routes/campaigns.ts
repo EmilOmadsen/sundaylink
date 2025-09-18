@@ -182,11 +182,27 @@ router.get('/', (req, res) => {
     campaigns = campaignStorage;
   }
   
-  // Add smart link URLs
-  const campaignsWithUrls = campaigns.map((campaign: any) => ({
-    ...campaign,
-    smart_link_url: `${req.protocol}://${req.get('host')}/c/${campaign.id}`
-  }));
+  // Add smart link URLs and click counts
+  const campaignsWithUrls = campaigns.map((campaign: any) => {
+    let clickCount = 0;
+    
+    // Get click count from database if available
+    try {
+      if (db) {
+        const getClickCount = db.prepare('SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ? AND expires_at > datetime("now")');
+        const result = getClickCount.get(campaign.id);
+        clickCount = result ? result.count : 0;
+      }
+    } catch (error) {
+      console.error(`Failed to get click count for campaign ${campaign.id}:`, error);
+    }
+    
+    return {
+      ...campaign,
+      smart_link_url: `${req.protocol}://${req.get('host')}/c/${campaign.id}`,
+      clicks: clickCount
+    };
+  });
   
   console.log(`✅ Returning ${campaignsWithUrls.length} campaigns total`);
   res.json(campaignsWithUrls);

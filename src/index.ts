@@ -395,6 +395,54 @@ async function startServer() {
         return res.status(410).send('Campaign is not active');
       }
       
+      // Track the click
+      try {
+        const clickService = (await import('./services/clicks')).default;
+        
+        // Extract client information
+        const clientIP = req.ip || 
+                        req.connection?.remoteAddress || 
+                        req.socket?.remoteAddress ||
+                        '127.0.0.1';
+        const userAgent = req.get('User-Agent');
+        const referrer = req.get('Referer');
+        
+        // Extract UTM parameters
+        const utmParams = {
+          utm_source: req.query.utm_source as string,
+          utm_medium: req.query.utm_medium as string,
+          utm_campaign: req.query.utm_campaign as string,
+          utm_content: req.query.utm_content as string,
+          utm_term: req.query.utm_term as string
+        };
+        
+        // Track the click
+        const click = clickService.track({
+          campaign_id: campaignId,
+          ip: clientIP,
+          user_agent: userAgent,
+          referrer: referrer,
+          ...utmParams
+        });
+        
+        console.log(`📊 Click tracked: ${click.id} for campaign ${campaignId}`);
+        
+        // Set click_id cookie for attribution (expires in 40 days)
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 40);
+        
+        res.cookie('click_id', click.id, {
+          expires: expiryDate,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax'
+        });
+        
+      } catch (clickError) {
+        console.error('❌ Failed to track click:', clickError);
+        // Continue with redirect even if click tracking fails
+      }
+      
       console.log(`✅ Redirecting to: ${campaign.destination_url}`);
       res.redirect(302, campaign.destination_url);
       
