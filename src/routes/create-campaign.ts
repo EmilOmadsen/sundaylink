@@ -255,8 +255,9 @@ router.get('/', (req, res) => {
             // API Configuration - get from environment or fall back to same origin
             const API_BASE = (window.ENV && window.ENV.VITE_API_URL) ? window.ENV.VITE_API_URL.replace(/\/+$/, "") : "";
             if (!API_BASE) {
-                console.warn("VITE_API_URL is not set. Using same-origin API calls.");
+                console.warn("VITE_API_URL ikke sat – API-kald kan fejle i prod.");
             }
+            console.log("API_BASE:", API_BASE);
 
             // Safe fetch wrapper
             async function safeFetch(input, init = {}) {
@@ -333,7 +334,7 @@ router.get('/', (req, res) => {
                     });
 
                     // Build the correct absolute URL
-                    const createCampaignUrl = API_BASE ? API_BASE + "/api/campaigns" : "/api/campaigns";
+                    const createCampaignUrl = API_BASE + "/api/campaigns";
                     console.log('📡 Making request to:', createCampaignUrl);
                     console.log('📋 Request data:', data);
                     
@@ -439,7 +440,7 @@ router.get('/', (req, res) => {
             async function checkAuthStatus() {
                 console.log('🔍 Checking authentication status...');
                 try {
-                    const authStatusUrl = API_BASE ? API_BASE + "/api/campaigns/auth-status" : "/api/campaigns/auth-status";
+                    const authStatusUrl = API_BASE + "/api/campaigns/auth-status";
                     const result = await safeFetch(authStatusUrl, {
                         method: 'GET'
                     });

@@ -37,6 +37,13 @@ router.get('/', (req, res) => {
         <script>
             // Inject environment variables for frontend (safe JSON encoding)
             window.ENV = ${JSON.stringify(envConfig)};
+            
+            // API Configuration - get from environment or fall back to same origin
+            const API_BASE = (window.ENV && window.ENV.VITE_API_URL) ? window.ENV.VITE_API_URL.replace(/\/+$/, "") : "";
+            if (!API_BASE) {
+                console.warn("VITE_API_URL ikke sat – API-kald kan fejle i prod.");
+            }
+            console.log("API_BASE:", API_BASE);
         </script>
         <style>
             * {
@@ -460,7 +467,7 @@ router.get('/', (req, res) => {
             async function loadDashboard() {
                 try {
                     console.log('Loading dashboard data...');
-                    const response = await fetch('/api/metrics/campaigns');
+                    const response = await fetch(API_BASE + "/api/campaigns");
                     console.log('Response status:', response.status);
                     
                     if (!response.ok) {
@@ -537,7 +544,7 @@ router.get('/', (req, res) => {
                 
                 const spotifyTrackId = prompt('Spotify Track ID (optional):') || '';
 
-                fetch(window.ENV?.VITE_API_URL ? window.ENV.VITE_API_URL + '/api/campaigns' : '/api/campaigns', {
+                fetch(API_BASE + "/api/campaigns", {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -581,11 +588,12 @@ router.get('/', (req, res) => {
                         return;
                     }
 
-                    const response = await fetch('/api/campaigns/' + campaignId + '/status', {
+                    const response = await fetch(API_BASE + "/api/campaigns/" + campaignId + "/status", {
                         method: 'PATCH',
                         headers: {
                             'Content-Type': 'application/json'
                         },
+                        credentials: 'include',
                         body: JSON.stringify({ status: newStatus })
                     });
 
@@ -618,8 +626,9 @@ router.get('/', (req, res) => {
                         return;
                     }
 
-                    const response = await fetch('/api/campaigns/' + campaignId, {
-                        method: 'DELETE'
+                    const response = await fetch(API_BASE + "/api/campaigns/" + campaignId, {
+                        method: 'DELETE',
+                        credentials: 'include'
                     });
 
                     if (!response.ok) {
