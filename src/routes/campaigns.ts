@@ -203,9 +203,29 @@ router.get('/', (req, res) => {
     // Get click count from database if available
     try {
       if (db) {
-        const getClickCount = db.prepare('SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ? AND expires_at > datetime("now")');
-        const result = getClickCount.get(campaign.id);
+        // Disable FK constraints and ensure clicks table exists
+        db.pragma('foreign_keys = OFF');
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS clicks (
+            id TEXT PRIMARY KEY,
+            campaign_id TEXT NOT NULL,
+            ip_hash TEXT NOT NULL,
+            user_agent TEXT,
+            utm_source TEXT,
+            utm_medium TEXT,
+            utm_campaign TEXT,
+            utm_content TEXT,
+            utm_term TEXT,
+            referrer TEXT,
+            clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+          )
+        `);
+        
+        const getClickCount = db.prepare('SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ?');
+        const result = getClickCount.get(campaign.id) as { count: number } | undefined;
         clickCount = result ? result.count : 0;
+        console.log(`📊 Campaign ${campaign.id} has ${clickCount} clicks`);
       }
     } catch (error) {
       console.error(`Failed to get click count for campaign ${campaign.id}:`, error);
