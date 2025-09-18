@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node railway-working.js",
+    "startCommand": "npm run build && node dist/index.js",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30000,
     "restartPolicyType": "ON_FAILURE",

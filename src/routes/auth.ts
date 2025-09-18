@@ -10,14 +10,21 @@ declare global {
   }
 }
 
-// Factory function that creates router with injected services
-export function createAuthRouter(services: {
-  authService?: any;
-  spotifyService?: any;
-  sessionService?: any;
-} = {}) {
-  const router = express.Router();
-  const { authService, spotifyService, sessionService } = services;
+const router = express.Router();
+
+// Import services with fallback
+let authService: any = null;
+let spotifyService: any = null;
+let sessionService: any = null;
+
+try {
+  authService = require('../services/auth').default;
+  spotifyService = require('../services/spotify').default;
+  sessionService = require('../services/sessions').default;
+  console.log('✅ Auth services imported successfully');
+} catch (error) {
+  console.error('❌ Failed to import auth services:', error);
+}
 
 // Log Spotify configuration at startup
 console.log('🎵 Spotify OAuth Configuration:');
@@ -777,10 +784,4 @@ router.delete('/user/:email', async (req, res) => {
   }
 });
 
-  return router;
-}
-
-// Default export for backward compatibility
-export default function createDefaultAuthRouter() {
-  return createAuthRouter();
-}
+export default router;

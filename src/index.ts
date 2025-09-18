@@ -292,18 +292,8 @@ app.get('/robots.txt', (req, res) => {
   res.send('User-agent: *\nDisallow:');
 });
 
-// Root route - redirect to login page (the actual app)
-// Guard for create-campaign - remove query parameters to prevent form submission navigation
-app.get("/create-campaign", (req, res, next) => {
-  if (Object.keys(req.query || {}).length > 0) {
-    console.log('🚫 Removing query parameters from create-campaign URL');
-    return res.redirect(303, "/create-campaign"); // fjern ?query
-  }
-  return next();
-});
-
+// Root route - redirect to login page
 app.get('/', (req, res) => {
-  console.log('🏠 Root request - redirecting to auth/login');
   res.redirect('/auth/login');
 });
 
@@ -331,146 +321,26 @@ async function startServer() {
   // Initialize database first
   const dbInitialized = await initializeDatabase();
   
-  // ROBUST route registration with dependency injection
-  console.log('📋 Registering routes with dependency injection...');
+  // SIMPLE route registration - restore original design
+  console.log('📋 Importing and mounting routes...');
   
-  // Initialize services with robust error handling
-  async function load(label: string, loader: () => Promise<any>) {
-    try { 
-      const service = await loader();
-      console.log(`✅ ${label} initialized`);
-      return service;
-    } catch (e) { 
-      console.error(`❌ [boot] ${label} init failed:`, e instanceof Error ? e.message : 'Unknown error');
-      return undefined; 
-    }
-  }
-  
-  const campaignService = await load("campaignService", async () => {
-    return (await import('./services/campaigns')).default;
-  });
-  
-  const authService = await load("authService", async () => {
-    return (await import('./services/auth')).default;
-  });
-  
-  const spotifyService = await load("spotifyService", async () => {
-    return (await import('./services/spotify')).default;
-  });
-  
-  const sessionService = await load("sessionService", async () => {
-    return (await import('./services/sessions')).default;
-  });
-  
-  // Register diagnostics endpoint
-  app.get('/__diagnostics', (_req, res) => {
-    const list = app._router?.stack?.filter((l: any) => l.route)?.map((l: any) => ({
-      path: l.route.path, 
-      methods: Object.keys(l.route.methods)
-    })) ?? [];
-    
-    // Add router-mounted routes
-    app._router?.stack?.forEach((layer: any) => {
-      if (layer.name === 'router' && layer.regexp) {
-        const path = layer.regexp.source.replace(/\\\//g, '/').replace(/\$.*/, '').replace(/\^.*?\//,'');
-        list.push({ path: `/${path}*`, methods: ['*'] });
-      }
-    });
-    
-    res.json({ 
-      routes: list, 
-      deps: { 
-        campaignService: !!campaignService, 
-        authService: !!authService,
-        spotifyService: !!spotifyService,
-        sessionService: !!sessionService
-      },
-      database: {
-        initialized: dbInitialized
-      },
-      environment: {
-        NODE_ENV: process.env.NODE_ENV || 'development',
-        RAILWAY_ENVIRONMENT: !!process.env.RAILWAY_ENVIRONMENT,
-        PORT: process.env.PORT
-      },
-      timestamp: new Date().toISOString()
-    });
-  });
-  
-  // ALWAYS mount API routes - use 503 responses if services unavailable
-  console.log('📋 Mounting API routes (always succeeds)...');
-  
-  // Campaigns API - ALWAYS mounted
   try {
-    const { createCampaignsRouter } = await import('./routes/campaigns');
-    const campaignRoutes = createCampaignsRouter({ campaignService, authService });
-    app.use('/api/campaigns', campaignRoutes);
-    console.log('✅ Campaigns API routes mounted at /api/campaigns');
-  } catch (error) {
-    console.error('❌ Failed to import campaigns route, creating fallback:', error);
-    
-    // Fallback router that always responds with 503
-    const fallbackRouter = express.Router();
-    fallbackRouter.all('*', (req, res) => {
-      res.status(503).json({ message: 'campaignService unavailable' });
-    });
-    app.use('/api/campaigns', fallbackRouter);
-    console.log('✅ Fallback campaigns route created (503 responses)');
-  }
-  
-  // ALWAYS mount frontend routes - create fallbacks if imports fail
-  console.log('📋 Mounting frontend routes (always succeeds)...');
-  
-  // Auth routes - ALWAYS mounted
-  try {
-    const { createAuthRouter } = await import('./routes/auth');
-    const authRoutes = createAuthRouter({ authService, spotifyService, sessionService });
-    app.use('/auth', authRoutes);
-    console.log('✅ Auth routes mounted');
-  } catch (error) {
-    console.error('❌ Failed to create auth route, creating fallback:', error);
-    
-    // Fallback auth route
-    app.get('/auth/login', (req, res) => {
-      res.status(503).json({ message: 'authService unavailable' });
-    });
-    console.log('✅ Fallback auth route created');
-  }
-  
-  // Dashboard routes - ALWAYS mounted
-  try {
+    // Import routes dynamically AFTER database is initialized
+    const authRoutes = (await import('./routes/auth')).default;
     const dashboardRoutes = (await import('./routes/dashboard')).default;
-    app.use('/dashboard', dashboardRoutes);
-    console.log('✅ Dashboard routes mounted');
-  } catch (error) {
-    console.error('❌ Failed to import dashboard route, creating fallback:', error);
-    app.get('/dashboard', (req, res) => {
-      res.status(503).send('<h1>Dashboard temporarily unavailable</h1>');
-    });
-    console.log('✅ Fallback dashboard route created');
-  }
-  
-  // Create campaign routes - ALWAYS mounted
-  try {
     const createCampaignRoutes = (await import('./routes/create-campaign')).default;
+    const campaignRoutes = (await import('./routes/campaigns')).default;
+
+    // Register routes
+    app.use('/auth', authRoutes);
+    app.use('/dashboard', dashboardRoutes);
     app.use('/create-campaign', createCampaignRoutes);
-    console.log('✅ Create campaign routes mounted');
+    app.use('/api/campaigns', campaignRoutes);
+    
+    console.log('✅ All routes registered successfully');
   } catch (error) {
-    console.error('❌ Failed to import create-campaign route, creating fallback:', error);
-    app.get('/create-campaign', (req, res) => {
-      res.status(503).send('<h1>Create Campaign temporarily unavailable</h1>');
-    });
-    console.log('✅ Fallback create-campaign route created');
-  }
-  
-  // Debug routes - ALWAYS mounted
-  try {
-    const debugCampaignRoutes = (await import('./routes/debug-campaign')).default;
-    app.use('/debug-campaign', debugCampaignRoutes);
-    console.log('✅ Debug campaign routes mounted');
-  } catch (error) {
-    console.error('❌ Failed to import debug-campaign route:', error);
-    // No fallback needed for debug route
+    console.error('❌ Failed to import routes:', error instanceof Error ? error.message : 'Unknown error');
+    console.log('⚠️ Server will start with health checks only');
   }
   
   console.log('✅ Minimal routes registered - server will continue to start');
