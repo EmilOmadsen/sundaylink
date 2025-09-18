@@ -481,18 +481,23 @@ router.get('/', (req, res) => {
                         throw new Error('Failed to fetch campaigns: ' + response.status);
                     }
                     
-                    const data = await response.json();
-                    console.log('Dashboard data received:', data);
+                    const campaigns = await response.json();
+                    console.log('Campaigns data received:', campaigns);
+                    
+                    // Calculate statistics from campaigns array
+                    const totalCampaigns = campaigns.length;
+                    const totalClicks = campaigns.reduce((sum, campaign) => sum + (campaign.clicks || 0), 0);
+                    const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
                     
                     // Update stats
-                    document.getElementById('total-campaigns').textContent = data.summary.total_campaigns;
-                    document.getElementById('total-clicks').textContent = data.summary.total_clicks;
-                    document.getElementById('total-streams').textContent = data.summary.total_streams;
-                    document.getElementById('total-listeners').textContent = data.summary.total_listeners;
-                    document.getElementById('total-unique-songs').textContent = data.summary.total_unique_songs;
+                    document.getElementById('total-campaigns').textContent = totalCampaigns;
+                    document.getElementById('total-clicks').textContent = totalClicks;
+                    document.getElementById('total-streams').textContent = '0'; // Will be updated when we have plays data
+                    document.getElementById('total-listeners').textContent = '0'; // Will be updated when we have user data
+                    document.getElementById('total-unique-songs').textContent = activeCampaigns;
 
                     // Update campaigns table
-                    campaignsData = data.campaigns;
+                    campaignsData = campaigns;
                     console.log('Campaigns data:', campaignsData);
                     renderCampaignsTable();
 
