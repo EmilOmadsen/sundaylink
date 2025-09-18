@@ -37,6 +37,12 @@ router.get('/', (req, res) => {
         <title>Create Campaign - Sundaylink</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script>
+            // Inject environment variables for frontend
+            window.ENV = {
+                VITE_API_URL: "${process.env.VITE_API_URL || ''}"
+            };
+        </script>
         <style>
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -242,6 +248,39 @@ router.get('/', (req, res) => {
         </div>
 
         <script>
+            // API Configuration - get from environment or fall back to same origin
+            const API_BASE = window.ENV?.VITE_API_URL?.replace(/\/+$/, "") || "";
+            if (!API_BASE) {
+                console.warn("VITE_API_URL is not set. Using same-origin API calls.");
+            }
+
+            // Safe fetch wrapper
+            async function safeFetch(input, init = {}) {
+                const url = input.startsWith("http") ? input : input;
+                const res = await fetch(url, {
+                    credentials: "include", // safe for cookie-based auth
+                    ...init,
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(init.headers || {}),
+                    },
+                });
+
+                const text = await res.text();
+                let data;
+                try { 
+                    data = text ? JSON.parse(text) : undefined; 
+                } catch { 
+                    data = text; 
+                }
+
+                if (!res.ok) {
+                    const msg = res.status + " " + res.statusText + " – " + (typeof data === "string" ? data : (data && data.message) || "");
+                    throw new Error(msg.trim());
+                }
+                return data;
+            }
+
             let generatedLinkUrl = '';
 
             document.getElementById('campaign-form').addEventListener('submit', async (e) => {
@@ -269,33 +308,21 @@ router.get('/', (req, res) => {
                 });
 
                 try {
-                    console.log('📡 Making request to /api/campaigns...');
+                    // Build the correct absolute URL
+                    const createCampaignUrl = API_BASE ? API_BASE + "/api/campaigns" : "/api/campaigns";
+                    console.log('📡 Making request to:', createCampaignUrl);
                     console.log('🍪 Document cookies:', document.cookie);
                     console.log('📋 Request data:', data);
                     
-                    const response = await fetch('/api/campaigns', {
+                    const result = await safeFetch(createCampaignUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        credentials: 'same-origin', // Include cookies
                         body: JSON.stringify(data)
                     });
                     
-                    console.log('📥 Response received:', response.status, response.statusText);
+                    console.log('✅ Response received successfully');
+                    console.log('📄 Response data:', result);
 
-                    let result;
-                    try {
-                        const responseText = await response.text();
-                        console.log('📄 Raw response:', responseText);
-                        result = JSON.parse(responseText);
-                        console.log('📄 Parsed response data:', result);
-                    } catch (parseError) {
-                        console.error('❌ Failed to parse response as JSON:', parseError);
-                        throw new Error('Server returned ' + response.status + ': ' + response.statusText);
-                    }
-
-                    if (response.ok) {
+                    if (result) {
                         // SUCCESS! Show multiple confirmations
                         console.log('✅ Campaign created successfully:', result);
                         
@@ -332,29 +359,28 @@ router.get('/', (req, res) => {
                                 });
                             }
                         }
-                    } else {
-                        console.log('❌ Request failed:', response.status, result);
-                        throw new Error(result.error || 'Failed to create campaign');
                     }
                 } catch (error) {
                     console.error('❌ Error creating campaign:', error);
                     
-                    let errorMessage = 'Unknown error occurred';
-                    if (error instanceof Error) {
-                        errorMessage = error.message;
-                    }
+                    // Never crash the app; show a friendly message instead
+                    let message = error instanceof Error ? error.message : "Unknown error";
                     
                     // Show helpful error messages based on the error
-                    if (errorMessage.includes('401') || errorMessage.includes('Authentication')) {
-                        errorMessage = 'Authentication required. Please log in first.';
-                    } else if (errorMessage.includes('404') || errorMessage.includes('Not found')) {
-                        errorMessage = 'API endpoint not found. Please check your connection.';
-                    } else if (errorMessage.includes('500')) {
-                        errorMessage = 'Server error. Please try again later.';
+                    if (message.includes('401') || message.includes('Authentication')) {
+                        message = 'Authentication required. Please log in first.';
+                    } else if (message.includes('404') || message.includes('Not found')) {
+                        message = 'Could not connect to API. Please check your connection.';
+                    } else if (message.includes('500')) {
+                        message = 'Server error. Please try again later.';
+                    } else if (message.includes('CORS') || message.includes('fetch')) {
+                        message = 'Connection error. Please check your network.';
                     }
                     
-                    document.getElementById('error-message').textContent = '❌ ' + errorMessage;
+                    // Set user-friendly error message
+                    document.getElementById('error-message').textContent = 'Could not create campaign: ' + message;
                     document.getElementById('error-message').style.display = 'block';
+                    console.error("Create campaign failed:", message);
                     
                     // Reset button state on error
                     submitBtn.textContent = originalText;
@@ -383,16 +409,16 @@ router.get('/', (req, res) => {
             async function checkAuthStatus() {
                 console.log('🔍 Checking authentication status...');
                 try {
-                    const response = await fetch('/api/campaigns/auth-status', {
-                        method: 'GET',
-                        credentials: 'same-origin'
+                    const authStatusUrl = API_BASE ? API_BASE + "/api/campaigns/auth-status" : "/api/campaigns/auth-status";
+                    const result = await safeFetch(authStatusUrl, {
+                        method: 'GET'
                     });
-                    const result = await response.json();
                     console.log('🔐 Auth status result:', result);
                     alert('Auth Status: ' + JSON.stringify(result, null, 2));
                 } catch (error) {
                     console.error('❌ Error checking auth status:', error);
-                    alert('Error checking auth: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    alert('Error checking auth: ' + message);
                 }
             }
         </script>

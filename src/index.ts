@@ -261,7 +261,14 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false
 }));
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://sundaylink-production.up.railway.app",
+    "http://localhost:3000",
+    "http://localhost:5173" // Vite dev server default
+  ],
+  credentials: true
+}));
 
 // Serve static files from root directory and public directory
 app.use(express.static('.'));

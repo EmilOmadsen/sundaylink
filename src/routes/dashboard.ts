@@ -29,6 +29,12 @@ router.get('/', (req, res) => {
         <title>Dashboard - Sundaylink</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script>
+            // Inject environment variables for frontend
+            window.ENV = {
+                VITE_API_URL: "${process.env.VITE_API_URL || ''}"
+            };
+        </script>
         <style>
             * {
                 margin: 0;
@@ -528,11 +534,12 @@ router.get('/', (req, res) => {
                 
                 const spotifyTrackId = prompt('Spotify Track ID (optional):') || '';
 
-                fetch('/api/campaigns', {
+                fetch(window.ENV?.VITE_API_URL ? window.ENV.VITE_API_URL + '/api/campaigns' : '/api/campaigns', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include',
                     body: JSON.stringify({
                         name: name,
                         destination_url: destinationUrl,
