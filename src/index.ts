@@ -486,6 +486,64 @@ async function startServer() {
     }
   });
   
+  // Debug endpoint to test click tracking
+  app.get('/debug-click/:campaignId', async (req, res) => {
+    const { campaignId } = req.params;
+    try {
+      console.log(`🔍 Debug click tracking for campaign: ${campaignId}`);
+      
+      // Import database and click service
+      const clickDb = (await import('./services/database')).default;
+      const clickService = (await import('./services/clicks')).default;
+      
+      // Ensure clicks table exists
+      clickDb.exec(`
+        CREATE TABLE IF NOT EXISTS clicks (
+          id TEXT PRIMARY KEY,
+          campaign_id TEXT NOT NULL,
+          ip_hash TEXT NOT NULL,
+          user_agent TEXT,
+          utm_source TEXT,
+          utm_medium TEXT,
+          utm_campaign TEXT,
+          utm_content TEXT,
+          utm_term TEXT,
+          referrer TEXT,
+          clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+        )
+      `);
+      
+      // Test click tracking
+      const click = clickService.track({
+        campaign_id: campaignId,
+        ip: '127.0.0.1',
+        user_agent: 'Debug-Test',
+        referrer: 'debug'
+      });
+      
+      // Get click count
+      const getClickCount = clickDb.prepare('SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ?');
+      const result = getClickCount.get(campaignId) as { count: number } | undefined;
+      
+      res.json({
+        success: true,
+        clickId: click.id,
+        campaignId: campaignId,
+        totalClicks: result ? result.count : 0,
+        message: 'Click tracking test successful'
+      });
+      
+    } catch (error) {
+      console.error('Debug click tracking error:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack'
+      });
+    }
+  });
+  
   console.log('✅ Minimal routes registered - server will continue to start');
 
   // Add error handling middleware at the end
