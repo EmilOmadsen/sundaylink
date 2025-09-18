@@ -39,7 +39,14 @@ router.get('/', (req, res) => {
             window.ENV = ${JSON.stringify(envConfig)};
             
             // API Configuration - get from environment or fall back to same origin
-            const API_BASE = (window.ENV && window.ENV.VITE_API_URL) ? window.ENV.VITE_API_URL.replace(/\/+$/, "") : "";
+            let API_BASE = "";
+            if (window.ENV && window.ENV.VITE_API_URL) {
+                API_BASE = window.ENV.VITE_API_URL;
+                // Remove trailing slashes
+                while (API_BASE.endsWith("/")) {
+                    API_BASE = API_BASE.slice(0, -1);
+                }
+            }
             if (!API_BASE) {
                 console.warn("VITE_API_URL ikke sat – API-kald kan fejle i prod.");
             }
