@@ -1,17 +1,48 @@
 import express from 'express';
-import campaignService from '../services/campaigns';
 import clickService from '../services/clicks';
 
 const router = express.Router();
+
+// Database connection (same as campaigns route)
+let db: any = null;
+let campaignStorage: any[] = [];
+
+try {
+  db = require('../services/database').default;
+  console.log('✅ Database imported in clicks route');
+} catch (error) {
+  console.error('❌ Failed to import database in clicks route:', error);
+}
+
+// Function to get campaign by ID (matches campaigns route logic)
+async function getCampaignById(campaignId: string) {
+  // Try database first
+  if (db) {
+    try {
+      const getCampaign = db.prepare('SELECT * FROM campaigns WHERE id = ?');
+      const campaign = getCampaign.get(campaignId);
+      if (campaign) {
+        return campaign;
+      }
+    } catch (error) {
+      console.error('Failed to get campaign from database:', error);
+    }
+  }
+  
+  // Fallback to in-memory (though this won't work across routes)
+  return campaignStorage.find(c => c.id === campaignId);
+}
 
 // Smart link click handler - /c/:campaignId
 router.get('/c/:campaignId', async (req, res) => {
   try {
     const { campaignId } = req.params;
+    console.log(`🔗 Click tracking: ${campaignId}`);
     
     // Check if campaign exists and is active
-    const campaign = campaignService.getById(campaignId);
+    const campaign = await getCampaignById(campaignId);
     if (!campaign) {
+      console.log(`❌ Campaign not found: ${campaignId}`);
       return res.status(404).send('Campaign not found');
     }
 
@@ -46,6 +77,7 @@ router.get('/c/:campaignId', async (req, res) => {
     });
 
     // Redirect to destination
+    console.log(`✅ Redirecting to: ${campaign.destination_url}`);
     res.redirect(campaign.destination_url);
   } catch (error) {
     console.error('Error handling click:', error);
@@ -54,12 +86,12 @@ router.get('/c/:campaignId', async (req, res) => {
 });
 
 // Get clicks for a campaign (for analytics)
-router.get('/campaign/:campaignId', (req, res) => {
+router.get('/campaign/:campaignId', async (req, res) => {
   try {
     const { campaignId } = req.params;
     
     // Verify campaign exists
-    const campaign = campaignService.getById(campaignId);
+    const campaign = await getCampaignById(campaignId);
     if (!campaign) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
