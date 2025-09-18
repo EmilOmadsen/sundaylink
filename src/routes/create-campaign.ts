@@ -253,7 +253,7 @@ router.get('/', (req, res) => {
 
         <script>
             // API Configuration - get from environment or fall back to same origin
-            const API_BASE = window.ENV?.VITE_API_URL?.replace(/\/+$/, "") || "";
+            const API_BASE = (window.ENV && window.ENV.VITE_API_URL) ? window.ENV.VITE_API_URL.replace(/\/+$/, "") : "";
             if (!API_BASE) {
                 console.warn("VITE_API_URL is not set. Using same-origin API calls.");
             }

@@ -1,20 +1,60 @@
 import express from 'express';
-import campaignService, { CreateCampaignData } from '../services/campaigns';
-import authService from '../services/auth';
 
 const router = express.Router();
+
+// Import types
+interface CreateCampaignData {
+  name: string;
+  destination_url: string;
+  spotify_track_id?: string;
+  spotify_artist_id?: string;
+  spotify_playlist_id?: string;
+  user_id?: number;
+}
+
+// Simple test route to verify route registration is working
+router.get('/test', (req, res) => {
+  console.log('🧪 GET /api/campaigns/test - Simple test route');
+  res.json({ 
+    message: 'Campaigns route is working!', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Import services after router is created to avoid circular dependencies
+let campaignService: any = null;
+let authService: any = null;
+
+try {
+  campaignService = require('../services/campaigns').default;
+  authService = require('../services/auth').default;
+  console.log('✅ Campaign services imported successfully');
+} catch (error) {
+  console.error('❌ Failed to import campaign services:', error);
+}
 
 // Debug route to check authentication status (no auth required)
 router.get('/auth-status', (req, res) => {
   console.log('🔍 GET /api/campaigns/auth-status - Debug route');
   console.log('🍪 Cookies received:', req.cookies);
+  
+  if (!authService) {
+    return res.json({ 
+      authenticated: false, 
+      message: 'Auth service not available - service import failed',
+      serviceStatus: 'failed'
+    });
+  }
+  
   const token = req.cookies.auth_token;
   
   if (!token) {
     return res.json({ 
       authenticated: false, 
       message: 'No auth_token cookie found',
-      cookies: Object.keys(req.cookies)
+      cookies: Object.keys(req.cookies),
+      serviceStatus: 'ok'
     });
   }
   
@@ -25,25 +65,33 @@ router.get('/auth-status', (req, res) => {
       return res.json({ 
         authenticated: true, 
         user: user ? { id: user.id, email: user.email } : null,
-        message: 'Token valid'
+        message: 'Token valid',
+        serviceStatus: 'ok'
       });
     } else {
       return res.json({ 
         authenticated: false, 
-        message: 'Token invalid or expired'
+        message: 'Token invalid or expired',
+        serviceStatus: 'ok'
       });
     }
   } catch (error) {
     return res.json({ 
       authenticated: false, 
       message: 'Token verification failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
+      serviceStatus: 'error'
     });
   }
 });
 
 // Create a new campaign (requires authentication)
-router.post('/', (req, res, next) => authService.authenticate(req, res, next), (req, res) => {
+router.post('/', (req, res, next) => {
+  if (!authService) {
+    return res.status(500).json({ error: 'Auth service not available' });
+  }
+  authService.authenticate(req, res, next);
+}, (req, res) => {
   try {
     console.log('🎯 POST /api/campaigns - Request received');
     console.log('📝 Request body:', JSON.stringify(req.body, null, 2));
@@ -76,7 +124,7 @@ router.post('/', (req, res, next) => authService.authenticate(req, res, next), (
     console.log('🔗 Generated smart link:', smartLinkUrl);
 
     const response = {
-      ...campaign,
+      ...(campaign as any),
       smart_link_url: smartLinkUrl
     };
     
@@ -95,8 +143,8 @@ router.get('/', (req, res, next) => authService.authenticate(req, res, next), (r
     const campaigns = campaignService.getByUserId(userId);
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     
-    const campaignsWithUrls = campaigns.map(campaign => ({
-      ...campaign,
+    const campaignsWithUrls = campaigns.map((campaign: any) => ({
+      ...(campaign as any),
       smart_link_url: campaignService.getSmartLinkUrl(campaign.id, baseUrl)
     }));
 
@@ -120,7 +168,7 @@ router.get('/:id', (req, res) => {
     const smartLinkUrl = campaignService.getSmartLinkUrl(campaign.id, baseUrl);
 
     res.json({
-      ...campaign,
+      ...(campaign as any),
       smart_link_url: smartLinkUrl
     });
   } catch (error) {
@@ -226,7 +274,7 @@ router.post('/test', (req, res) => {
     console.log('🔗 Generated smart link:', smartLinkUrl);
 
     const response = {
-      ...campaign,
+      ...(campaign as any),
       smart_link_url: smartLinkUrl
     };
     
