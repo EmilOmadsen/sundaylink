@@ -14,10 +14,23 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' });
   
   if (req.url === '/health') {
-    res.end('{"status":"ok"}');
-  } else {
-    res.end('{"message":"debug server working","url":"' + req.url + '"}');
+    res.end('{"status":"ok","timestamp":"' + new Date().toISOString() + '"}');
+    return;
   }
+  
+  if (req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end('<h1>✅ Sundaylink Working!</h1><p><a href="/create-campaign">Create Campaign</a></p>');
+    return;
+  }
+  
+  if (req.url === '/create-campaign') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end('<h1>✅ Create Campaign Working!</h1><p>Form will be added in next update</p><p><a href="/">Back to Home</a></p>');
+    return;
+  }
+  
+  res.end('{"message":"debug server working","url":"' + req.url + '"}');
 });
 
 server.on('error', (err) => {
