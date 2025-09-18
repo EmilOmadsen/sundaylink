@@ -473,9 +473,13 @@ router.get('/', (req, res) => {
 
             async function loadDashboard() {
                 try {
-                    console.log('Loading dashboard data...');
+                    console.log('🔄 Loading dashboard data...');
                     console.log('API_BASE:', API_BASE);
                     console.log('Full URL:', API_BASE + "/api/campaigns");
+                    
+                    // Show loading indicator and test if function is called
+                    document.getElementById('campaigns-loading').textContent = 'Loading campaigns... API_BASE: ' + API_BASE;
+                    document.title = '🔄 Loading... - Dashboard';
                     
                     const response = await fetch(API_BASE + "/api/campaigns", {
                         method: 'GET',
