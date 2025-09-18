@@ -1,10 +1,23 @@
 import express from 'express';
-import db from '../services/database';
 
 const router = express.Router();
 
+// Database connection with error handling
+let db: any = null;
+try {
+  db = require('../services/database').default;
+  console.log('✅ Database imported successfully');
+} catch (error) {
+  console.error('❌ Failed to import database:', error);
+}
+
 // Database storage for campaigns
 function initializeCampaignsTable() {
+  if (!db) {
+    console.error('❌ Database not available - cannot initialize campaigns table');
+    return false;
+  }
+  
   try {
     // Create campaigns table if it doesn't exist
     const createTable = `
@@ -24,8 +37,10 @@ function initializeCampaignsTable() {
     `;
     db.exec(createTable);
     console.log('✅ Campaigns table initialized');
+    return true;
   } catch (error) {
     console.error('❌ Failed to initialize campaigns table:', error);
+    return false;
   }
 }
 
@@ -85,6 +100,11 @@ router.post('/', (req, res) => {
   };
   
   // Save to database
+  if (!db) {
+    console.error('❌ Database not available - cannot save campaign');
+    return res.status(500).json({ error: 'Database not available' });
+  }
+  
   try {
     console.log('💾 Attempting to save campaign to database...');
     const insertCampaign = db.prepare(`
@@ -125,6 +145,11 @@ router.post('/', (req, res) => {
 // Get all campaigns
 router.get('/', (req, res) => {
   console.log('📋 GET /api/campaigns - Fetching campaigns from database');
+  
+  if (!db) {
+    console.error('❌ Database not available - cannot fetch campaigns');
+    return res.status(500).json({ error: 'Database not available' });
+  }
   
   try {
     // First check if table exists
