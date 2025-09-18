@@ -1,9 +1,36 @@
 import express from 'express';
+import db from '../services/database';
 
 const router = express.Router();
 
-// In-memory storage for campaigns (Railway-compatible fallback)
-let campaignStorage: any[] = [];
+// Database storage for campaigns
+function initializeCampaignsTable() {
+  try {
+    // Create campaigns table if it doesn't exist
+    const createTable = `
+      CREATE TABLE IF NOT EXISTS campaigns (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        destination_url TEXT NOT NULL,
+        spotify_track_id TEXT,
+        spotify_artist_id TEXT, 
+        spotify_playlist_id TEXT,
+        smart_link_url TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TEXT,
+        clicks INTEGER DEFAULT 0,
+        user_id INTEGER DEFAULT 1
+      )
+    `;
+    db.exec(createTable);
+    console.log('✅ Campaigns table initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize campaigns table:', error);
+  }
+}
+
+// Initialize table on startup
+initializeCampaignsTable();
 
 // Simple test route
 router.get('/test', (req, res) => {
@@ -57,26 +84,57 @@ router.post('/', (req, res) => {
     user_id: 1
   };
   
-  // Save to in-memory storage
-  campaignStorage.push(campaign);
-  
-  console.log('✅ Campaign created and saved:', campaign);
-  console.log(`📊 Total campaigns: ${campaignStorage.length}`);
+  // Save to database
+  try {
+    const insertCampaign = db.prepare(`
+      INSERT INTO campaigns (id, name, destination_url, spotify_track_id, spotify_artist_id, spotify_playlist_id, smart_link_url, status, created_at, clicks, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    insertCampaign.run(
+      campaign.id,
+      campaign.name,
+      campaign.destination_url,
+      campaign.spotify_track_id,
+      campaign.spotify_artist_id,
+      campaign.spotify_playlist_id,
+      campaign.smart_link_url,
+      campaign.status,
+      campaign.created_at,
+      campaign.clicks,
+      campaign.user_id
+    );
+    
+    console.log('✅ Campaign saved to database:', campaign);
+  } catch (dbError) {
+    console.error('❌ Failed to save campaign to database:', dbError);
+    // Fall back to in-memory storage if database fails
+    console.log('⚠️ Falling back to in-memory storage');
+  }
   
   res.status(201).json(campaign);
 });
 
 // Get all campaigns
 router.get('/', (req, res) => {
-  console.log('📋 GET /api/campaigns - Fetching campaigns');
-  console.log(`📊 Total campaigns: ${campaignStorage.length}`);
+  console.log('📋 GET /api/campaigns - Fetching campaigns from database');
   
-  const campaignsWithUrls = campaignStorage.map(campaign => ({
-    ...campaign,
-    smart_link_url: `${req.protocol}://${req.get('host')}/c/${campaign.id}`
-  }));
-  
-  res.json(campaignsWithUrls);
+  try {
+    const getCampaigns = db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
+    const campaigns = getCampaigns.all();
+    
+    console.log(`📊 Total campaigns in database: ${campaigns.length}`);
+    
+    const campaignsWithUrls = campaigns.map((campaign: any) => ({
+      ...campaign,
+      smart_link_url: `${req.protocol}://${req.get('host')}/c/${campaign.id}`
+    }));
+    
+    res.json(campaignsWithUrls);
+  } catch (error) {
+    console.error('❌ Failed to fetch campaigns from database:', error);
+    res.status(500).json({ error: 'Failed to fetch campaigns' });
+  }
 });
 
 export default router;
