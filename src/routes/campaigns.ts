@@ -7,12 +7,19 @@ let campaignStorage: any[] = [];
 
 // Database connection with error handling
 let db: any = null;
-try {
-  db = require('../services/database').default;
-  console.log('✅ Database imported successfully');
-} catch (error) {
-  console.error('❌ Failed to import database:', error);
-  console.log('⚠️ Using in-memory storage as fallback');
+async function getDatabase() {
+  if (!db) {
+    try {
+      db = require('../services/database').default;
+      console.log('✅ Database imported successfully');
+      // Ensure FK constraints are disabled for compatibility
+      db.pragma('foreign_keys = OFF');
+    } catch (error) {
+      console.error('❌ Failed to import database:', error);
+      console.log('⚠️ Using in-memory storage as fallback');
+    }
+  }
+  return db;
 }
 
 // Database storage for campaigns
@@ -161,16 +168,19 @@ router.post('/', (req, res) => {
 });
 
 // Get all campaigns
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   console.log('📋 GET /api/campaigns - Fetching campaigns');
   
   let campaigns: any[] = [];
   
+  // Get database connection
+  const database = await getDatabase();
+  
   // Try to get from database first
-  if (db) {
+  if (database) {
     try {
       console.log('📊 Attempting to fetch from database...');
-      const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='campaigns'");
+      const tableCheck = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='campaigns'");
       const tableExists = tableCheck.get();
       console.log('🔍 Campaigns table exists:', tableExists ? 'YES' : 'NO');
       
@@ -179,7 +189,7 @@ router.get('/', (req, res) => {
         initializeCampaignsTable();
       }
       
-      const getCampaigns = db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
+      const getCampaigns = database.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
       campaigns = getCampaigns.all();
       console.log(`📊 Found ${campaigns.length} campaigns in database`);
       
@@ -202,10 +212,9 @@ router.get('/', (req, res) => {
     
     // Get click count from database if available
     try {
-      if (db) {
-        // Disable FK constraints and ensure clicks table exists
-        db.pragma('foreign_keys = OFF');
-        db.exec(`
+      if (database) {
+        // Ensure clicks table exists
+        database.exec(`
           CREATE TABLE IF NOT EXISTS clicks (
             id TEXT PRIMARY KEY,
             campaign_id TEXT NOT NULL,
@@ -222,7 +231,7 @@ router.get('/', (req, res) => {
           )
         `);
         
-        const getClickCount = db.prepare('SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ?');
+        const getClickCount = database.prepare('SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ?');
         const result = getClickCount.get(campaign.id) as { count: number } | undefined;
         clickCount = result ? result.count : 0;
         console.log(`📊 Campaign ${campaign.id} has ${clickCount} clicks`);
