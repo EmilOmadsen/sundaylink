@@ -4,6 +4,44 @@ import authService from '../services/auth';
 
 const router = express.Router();
 
+// Debug route to check authentication status (no auth required)
+router.get('/auth-status', (req, res) => {
+  console.log('🔍 GET /api/campaigns/auth-status - Debug route');
+  console.log('🍪 Cookies received:', req.cookies);
+  const token = req.cookies.auth_token;
+  
+  if (!token) {
+    return res.json({ 
+      authenticated: false, 
+      message: 'No auth_token cookie found',
+      cookies: Object.keys(req.cookies)
+    });
+  }
+  
+  try {
+    const decoded = authService.verifyToken(token);
+    if (decoded) {
+      const user = authService.getById(decoded.userId);
+      return res.json({ 
+        authenticated: true, 
+        user: user ? { id: user.id, email: user.email } : null,
+        message: 'Token valid'
+      });
+    } else {
+      return res.json({ 
+        authenticated: false, 
+        message: 'Token invalid or expired'
+      });
+    }
+  } catch (error) {
+    return res.json({ 
+      authenticated: false, 
+      message: 'Token verification failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Create a new campaign (requires authentication)
 router.post('/', (req, res, next) => authService.authenticate(req, res, next), (req, res) => {
   try {

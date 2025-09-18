@@ -226,6 +226,7 @@ router.get('/', (req, res) => {
 
                     <div class="actions">
                         <button type="submit" class="btn">Create Campaign</button>
+                        <button type="button" class="btn" style="background: #28a745; margin-left: 10px;" onclick="checkAuthStatus()">🔍 Check Auth</button>
                         <a href="/dashboard" class="btn btn-secondary">Cancel</a>
                     </div>
                 </form>
@@ -283,8 +284,16 @@ router.get('/', (req, res) => {
                     
                     console.log('📥 Response received:', response.status, response.statusText);
 
-                    const result = await response.json();
-                    console.log('📄 Response data:', result);
+                    let result;
+                    try {
+                        const responseText = await response.text();
+                        console.log('📄 Raw response:', responseText);
+                        result = JSON.parse(responseText);
+                        console.log('📄 Parsed response data:', result);
+                    } catch (parseError) {
+                        console.error('❌ Failed to parse response as JSON:', parseError);
+                        throw new Error('Server returned ' + response.status + ': ' + response.statusText);
+                    }
 
                     if (response.ok) {
                         // SUCCESS! Show multiple confirmations
@@ -329,7 +338,22 @@ router.get('/', (req, res) => {
                     }
                 } catch (error) {
                     console.error('❌ Error creating campaign:', error);
-                    document.getElementById('error-message').textContent = '❌ ' + error.message;
+                    
+                    let errorMessage = 'Unknown error occurred';
+                    if (error instanceof Error) {
+                        errorMessage = error.message;
+                    }
+                    
+                    // Show helpful error messages based on the error
+                    if (errorMessage.includes('401') || errorMessage.includes('Authentication')) {
+                        errorMessage = 'Authentication required. Please log in first.';
+                    } else if (errorMessage.includes('404') || errorMessage.includes('Not found')) {
+                        errorMessage = 'API endpoint not found. Please check your connection.';
+                    } else if (errorMessage.includes('500')) {
+                        errorMessage = 'Server error. Please try again later.';
+                    }
+                    
+                    document.getElementById('error-message').textContent = '❌ ' + errorMessage;
                     document.getElementById('error-message').style.display = 'block';
                     
                     // Reset button state on error
@@ -353,6 +377,23 @@ router.get('/', (req, res) => {
                 }).catch(() => {
                     alert('❌ Failed to copy link. Please copy it manually.');
                 });
+            }
+
+            // Check authentication status (debug function)
+            async function checkAuthStatus() {
+                console.log('🔍 Checking authentication status...');
+                try {
+                    const response = await fetch('/api/campaigns/auth-status', {
+                        method: 'GET',
+                        credentials: 'same-origin'
+                    });
+                    const result = await response.json();
+                    console.log('🔐 Auth status result:', result);
+                    alert('Auth Status: ' + JSON.stringify(result, null, 2));
+                } catch (error) {
+                    console.error('❌ Error checking auth status:', error);
+                    alert('Error checking auth: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                }
             }
         </script>
     </body>
