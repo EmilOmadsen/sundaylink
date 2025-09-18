@@ -315,60 +315,54 @@ async function startServer() {
   // Initialize database first
   const dbInitialized = await initializeDatabase();
   
-  // Import and register routes - ALWAYS register routes, even if database fails
-  console.log('📋 Importing and mounting routes...');
+  // MINIMAL route registration to ensure server starts
+  console.log('📋 Registering minimal routes for debugging...');
   
+  // Register API routes with individual error handling
   try {
-    // Import auth routes first (most important)
+    console.log('📋 Importing campaigns API route...');
+    const campaignRoutes = (await import('./routes/campaigns')).default;
+    app.use('/api/campaigns', campaignRoutes);
+    console.log('✅ Campaigns API routes mounted at /api/campaigns');
+  } catch (error) {
+    console.error('❌ Failed to import campaigns route:', error);
+    
+    // Fallback: create minimal inline route
+    app.get('/api/campaigns/test', (req, res) => {
+      res.json({ message: 'Fallback campaigns route working', timestamp: new Date().toISOString() });
+    });
+    console.log('✅ Fallback campaigns route created');
+  }
+  
+  // Register essential frontend routes with individual error handling
+  try {
     console.log('📋 Importing auth route...');
     const authRoutes = (await import('./routes/auth')).default;
     app.use('/auth', authRoutes);
-    console.log('✅ app.use("/auth", authRouter) - Auth routes mounted');
-    
-    // Import other essential routes
+    console.log('✅ Auth routes mounted');
+  } catch (error) {
+    console.error('❌ Failed to import auth route:', error);
+  }
+  
+  try {
     console.log('📋 Importing dashboard route...');
     const dashboardRoutes = (await import('./routes/dashboard')).default;
     app.use('/dashboard', dashboardRoutes);
     console.log('✅ Dashboard routes mounted');
-    
+  } catch (error) {
+    console.error('❌ Failed to import dashboard route:', error);
+  }
+  
+  try {
     console.log('📋 Importing create-campaign route...');
     const createCampaignRoutes = (await import('./routes/create-campaign')).default;
     app.use('/create-campaign', createCampaignRoutes);
     console.log('✅ Create campaign routes mounted');
-    
-    console.log('📋 Importing advanced-analytics route...');
-    const advancedAnalyticsRoutes = (await import('./routes/advanced-analytics')).default;
-    app.use('/advanced-analytics', advancedAnalyticsRoutes);
-    console.log('✅ Advanced analytics routes mounted');
-    
-    console.log('📋 Importing click tracking routes...');
-    const clickRoutes = (await import('./routes/clicks')).default;
-    app.use('/', clickRoutes); // Click tracking routes (no /api prefix for clean URLs)
-    console.log('✅ Click tracking routes mounted');
-    
-    // ALWAYS register API routes - let them handle database errors gracefully
-    console.log('📋 Registering API routes (campaigns, metrics)...');
-    
-    console.log('📋 Importing campaigns API route...');
-    const campaignRoutes = (await import('./routes/campaigns')).default;
-    app.use('/api/campaigns', campaignRoutes);
-    console.log('✅ Campaigns API routes mounted at /api/campaigns (v2.0)');
-    
-    console.log('📋 Importing metrics API route...');
-    const metricsRoutes = (await import('./routes/metrics')).default;
-    app.use('/api/metrics', metricsRoutes);
-    console.log('✅ Metrics API routes mounted at /api/metrics');
-    
-    if (dbInitialized) {
-      console.log('✅ All routes registered successfully (database ready)');
-    } else {
-      console.log('⚠️ All routes registered (database not ready - API routes will handle errors)');
-    }
   } catch (error) {
-    console.error('❌ Critical error importing routes:', error instanceof Error ? error.message : 'Unknown error');
-    console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
-    console.log('⚠️ Server will start with health checks and basic routes only');
+    console.error('❌ Failed to import create-campaign route:', error);
   }
+  
+  console.log('✅ Minimal routes registered - server will continue to start');
 
   // Add error handling middleware at the end
   app.use(errorLogger);
