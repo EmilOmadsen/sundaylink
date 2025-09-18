@@ -434,46 +434,65 @@ async function startServer() {
           }
         }
         
-        const clickService = (await import('./services/clicks')).default;
+        // Direct click tracking without foreign key constraints
+        const { v4: uuidv4 } = await import('uuid');
+        const crypto = await import('crypto');
         
         // Extract client information
         const clientIP = req.ip || 
                         req.connection?.remoteAddress || 
                         req.socket?.remoteAddress ||
                         '127.0.0.1';
-        const userAgent = req.get('User-Agent');
-        const referrer = req.get('Referer');
+        const userAgent = req.get('User-Agent') || '';
+        const referrer = req.get('Referer') || '';
+        
+        // Generate click ID and hash IP
+        const clickId = uuidv4();
+        const ipHash = crypto.createHash('sha256').update(clientIP + 'salt').digest('hex');
         
         // Extract UTM parameters
-        const utmParams = {
-          utm_source: req.query.utm_source as string,
-          utm_medium: req.query.utm_medium as string,
-          utm_campaign: req.query.utm_campaign as string,
-          utm_content: req.query.utm_content as string,
-          utm_term: req.query.utm_term as string
-        };
+        const utmSource = req.query.utm_source as string || null;
+        const utmMedium = req.query.utm_medium as string || null;
+        const utmCampaign = req.query.utm_campaign as string || null;
+        const utmContent = req.query.utm_content as string || null;
+        const utmTerm = req.query.utm_term as string || null;
         
-        // Track the click
-        const click = clickService.track({
-          campaign_id: campaignId,
-          ip: clientIP,
-          user_agent: userAgent,
-          referrer: referrer,
-          ...utmParams
-        });
-        
-        console.log(`📊 Click tracked: ${click.id} for campaign ${campaignId}`);
-        
-        // Set click_id cookie for attribution (expires in 40 days)
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 40);
-        
-        res.cookie('click_id', click.id, {
-          expires: expiryDate,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax'
-        });
+        // Insert click directly
+        if (clickDb) {
+          const insertClick = clickDb.prepare(`
+            INSERT INTO clicks (
+              id, campaign_id, ip_hash, user_agent, utm_source, utm_medium, 
+              utm_campaign, utm_content, utm_term, referrer
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          insertClick.run(
+            clickId,
+            campaignId,
+            ipHash,
+            userAgent,
+            utmSource,
+            utmMedium,
+            utmCampaign,
+            utmContent,
+            utmTerm,
+            referrer
+          );
+          
+          console.log(`📊 Click tracked: ${clickId} for campaign ${campaignId}`);
+          
+          // Set click_id cookie for attribution (expires in 40 days)
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 40);
+          
+          res.cookie('click_id', clickId, {
+            expires: expiryDate,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax'
+          });
+        }
         
       } catch (clickError) {
         console.error('❌ Failed to track click:', clickError);
@@ -520,13 +539,29 @@ async function startServer() {
         )
       `);
       
-      // Test click tracking
-      const click = clickService.track({
-        campaign_id: campaignId,
-        ip: '127.0.0.1',
-        user_agent: 'Debug-Test',
-        referrer: 'debug'
-      });
+      // Test click tracking directly
+      const { v4: uuidv4 } = await import('uuid');
+      const crypto = await import('crypto');
+      
+      const clickId = uuidv4();
+      const ipHash = crypto.createHash('sha256').update('127.0.0.1' + 'salt').digest('hex');
+      
+      const insertClick = clickDb.prepare(`
+        INSERT INTO clicks (
+          id, campaign_id, ip_hash, user_agent, utm_source, utm_medium, 
+          utm_campaign, utm_content, utm_term, referrer
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      insertClick.run(
+        clickId,
+        campaignId,
+        ipHash,
+        'Debug-Test',
+        null, null, null, null, null,
+        'debug'
+      );
       
       // Get click count
       const getClickCount = clickDb.prepare('SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ?');
@@ -534,7 +569,7 @@ async function startServer() {
       
       res.json({
         success: true,
-        clickId: click.id,
+        clickId: clickId,
         campaignId: campaignId,
         totalClicks: result ? result.count : 0,
         message: 'Click tracking test successful'
