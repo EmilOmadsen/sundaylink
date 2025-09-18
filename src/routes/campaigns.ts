@@ -109,9 +109,26 @@ router.post('/', (req, res) => {
   if (db) {
     try {
       console.log('💾 Attempting to save campaign to database...');
+      
+      // Ensure campaigns table exists with correct schema
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS campaigns (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          destination_url TEXT NOT NULL,
+          spotify_track_id TEXT,
+          spotify_artist_id TEXT,
+          spotify_playlist_id TEXT,
+          status TEXT DEFAULT 'active',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+        )
+      `);
+      
       const insertCampaign = db.prepare(`
-        INSERT INTO campaigns (id, name, destination_url, spotify_track_id, spotify_artist_id, spotify_playlist_id, smart_link_url, status, created_at, clicks, user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO campaigns (id, name, destination_url, spotify_track_id, spotify_artist_id, spotify_playlist_id, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const result = insertCampaign.run(
@@ -121,11 +138,8 @@ router.post('/', (req, res) => {
         campaign.spotify_track_id,
         campaign.spotify_artist_id,
         campaign.spotify_playlist_id,
-        campaign.smart_link_url,
         campaign.status,
-        campaign.created_at,
-        campaign.clicks,
-        campaign.user_id
+        campaign.created_at
       );
       
       console.log('✅ Campaign saved to database. Insert result:', result);
