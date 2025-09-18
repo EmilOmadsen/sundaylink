@@ -543,12 +543,12 @@ router.get('/', (req, res) => {
                         '<div class="smart-link">' + smartLink + '</div>' +
                         '<button onclick="copyToClipboard(\"' + smartLink + '\")" class="copy-btn">Copy</button>' +
                         '</td>' +
-                        '<td>' + campaign.metrics.clicks + '</td>' +
-                        '<td>' + campaign.metrics.streams + '</td>' +
-                        '<td>' + (campaign.metrics.unique_songs || 0) + '</td>' +
-                        '<td>' + (campaign.metrics.listeners || 0) + '</td>' +
-                        '<td>' + campaign.metrics.streams_per_listener.toFixed(1) + '</td>' +
-                        '<td>' + (campaign.metrics.followers_delta > 0 ? '+' : '') + campaign.metrics.followers_delta + '</td>' +
+                        '<td>' + (campaign.clicks || 0) + '</td>' +
+                        '<td>0</td>' +
+                        '<td>0</td>' +
+                        '<td>0</td>' +
+                        '<td>0.0</td>' +
+                        '<td>0</td>' +
                         '<td>' + createdDate + '</td>' +
                         '<td>' +
                         '<button onclick="toggleCampaign(\\'' + campaign.id + '\\')" class="btn btn-small btn-secondary">' + (campaign.status === 'active' ? 'Pause' : 'Resume') + '</button>' +
