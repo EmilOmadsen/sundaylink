@@ -123,7 +123,7 @@ const server = http.createServer((req, res) => {
           id: 'simple_' + Date.now(),
           name: data.name,
           destination_url: data.destination_url,
-          smart_link_url: \`https://\${req.headers.host}/c/simple_\${Date.now()}\`,
+          smart_link_url: `https://${req.headers.host}/c/simple_${Date.now()}`,
           status: 'active',
           created_at: new Date().toISOString()
         };
@@ -132,8 +132,9 @@ const server = http.createServer((req, res) => {
         res.writeHead(201, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(campaign));
       } catch (e) {
+        console.error('❌ POST error:', e);
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        res.end(JSON.stringify({ error: 'Invalid JSON: ' + e.message }));
       }
     });
     return;
