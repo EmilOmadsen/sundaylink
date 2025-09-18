@@ -474,11 +474,23 @@ router.get('/', (req, res) => {
             async function loadDashboard() {
                 try {
                     console.log('Loading dashboard data...');
-                    const response = await fetch(API_BASE + "/api/campaigns");
+                    console.log('API_BASE:', API_BASE);
+                    console.log('Full URL:', API_BASE + "/api/campaigns");
+                    
+                    const response = await fetch(API_BASE + "/api/campaigns", {
+                        method: 'GET',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
                     console.log('Response status:', response.status);
+                    console.log('Response headers:', [...response.headers.entries()]);
                     
                     if (!response.ok) {
-                        throw new Error('Failed to fetch campaigns: ' + response.status);
+                        const errorText = await response.text();
+                        console.error('API Error Response:', errorText);
+                        throw new Error('Failed to fetch campaigns: ' + response.status + ' - ' + errorText);
                     }
                     
                     const campaigns = await response.json();
