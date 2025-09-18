@@ -347,7 +347,7 @@ async function startServer() {
     const dashboardRoutes = (await import('./routes/dashboard')).default;
     const createCampaignRoutes = (await import('./routes/create-campaign')).default;
     const campaignRoutes = (await import('./routes/campaigns')).default;
-    const clickRoutes = (await import('./routes/clicks')).default;
+    // const clickRoutes = (await import('./routes/clicks')).default; // DISABLED - using direct handler instead
 
     // Register routes
     app.use('/auth', authRoutes);
