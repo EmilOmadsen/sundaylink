@@ -223,67 +223,16 @@ app.get('/debug-api-base', (req, res) => {
     VITE_API_URL: process.env.VITE_API_URL || `${req.protocol}://${req.get('host')}`
   };
   
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>API Base Debug</title>
-        <script>
-            window.ENV = ${JSON.stringify(envConfig)};
-        </script>
-    </head>
-    <body>
-        <h1>API Base Debug</h1>
-        <div id="results"></div>
-        
-        <script>
-            const API_BASE = (window.ENV && window.ENV.VITE_API_URL) ? window.ENV.VITE_API_URL.replace(/\/+$/, "") : "";
-            
-            console.log("=== API_BASE DEBUG ===");
-            console.log("window.ENV:", window.ENV);
-            console.log("API_BASE:", API_BASE);
-            console.log("process.env.VITE_API_URL:", "${process.env.VITE_API_URL || 'NOT SET'}");
-            
-            document.getElementById('results').innerHTML = \`
-                <h2>Results:</h2>
-                <p><strong>window.ENV:</strong> \${JSON.stringify(window.ENV, null, 2)}</p>
-                <p><strong>API_BASE:</strong> \${API_BASE}</p>
-                <p><strong>Server VITE_API_URL:</strong> ${process.env.VITE_API_URL || 'NOT SET'}</p>
-                <p><strong>Current domain:</strong> \${window.location.origin}</p>
-                
-                <h3>Test API Call:</h3>
-                <button onclick="testAPI()">Test /api/campaigns</button>
-                <div id="test-result"></div>
-            \`;
-            
-            async function testAPI() {
-                const testUrl = API_BASE + "/api/campaigns";
-                console.log("Testing API call to:", testUrl);
-                
-                try {
-                    const response = await fetch(testUrl, {
-                        method: 'GET',
-                        credentials: 'include',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    const result = await response.text();
-                    document.getElementById('test-result').innerHTML = \`
-                        <p><strong>Status:</strong> \${response.status}</p>
-                        <p><strong>Response:</strong> \${result}</p>
-                    \`;
-                } catch (error) {
-                    document.getElementById('test-result').innerHTML = \`
-                        <p><strong>Error:</strong> \${error.message}</p>
-                    \`;
-                    console.error("API test failed:", error);
-                }
-            }
-        </script>
-    </body>
-    </html>
-  `);
+  res.json({
+    envConfig,
+    process_env_VITE_API_URL: process.env.VITE_API_URL,
+    calculated_fallback: `${req.protocol}://${req.get('host')}`,
+    headers: {
+      host: req.get('host'),
+      protocol: req.protocol
+    },
+    api_base_would_be: (envConfig.VITE_API_URL || "").replace(/\/+$/, "")
+  });
 });
 
 // Additional Railway health check routes
