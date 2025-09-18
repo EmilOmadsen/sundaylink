@@ -86,12 +86,13 @@ router.post('/', (req, res) => {
   
   // Save to database
   try {
+    console.log('💾 Attempting to save campaign to database...');
     const insertCampaign = db.prepare(`
       INSERT INTO campaigns (id, name, destination_url, spotify_track_id, spotify_artist_id, spotify_playlist_id, smart_link_url, status, created_at, clicks, user_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
-    insertCampaign.run(
+    const result = insertCampaign.run(
       campaign.id,
       campaign.name,
       campaign.destination_url,
@@ -105,11 +106,17 @@ router.post('/', (req, res) => {
       campaign.user_id
     );
     
-    console.log('✅ Campaign saved to database:', campaign);
+    console.log('✅ Campaign saved to database. Insert result:', result);
+    
+    // Verify it was saved by reading it back
+    const verifyCampaign = db.prepare('SELECT * FROM campaigns WHERE id = ?');
+    const savedCampaign = verifyCampaign.get(campaign.id);
+    console.log('🔍 Verification - Campaign in database:', savedCampaign ? 'FOUND' : 'NOT FOUND');
+    
   } catch (dbError) {
     console.error('❌ Failed to save campaign to database:', dbError);
-    // Fall back to in-memory storage if database fails
-    console.log('⚠️ Falling back to in-memory storage');
+    console.error('Stack trace:', dbError instanceof Error ? dbError.stack : 'No stack');
+    return res.status(500).json({ error: 'Failed to save campaign to database' });
   }
   
   res.status(201).json(campaign);
@@ -120,10 +127,23 @@ router.get('/', (req, res) => {
   console.log('📋 GET /api/campaigns - Fetching campaigns from database');
   
   try {
+    // First check if table exists
+    const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='campaigns'");
+    const tableExists = tableCheck.get();
+    console.log('🔍 Campaigns table exists:', tableExists ? 'YES' : 'NO');
+    
+    if (!tableExists) {
+      console.log('⚠️ Campaigns table does not exist, initializing...');
+      initializeCampaignsTable();
+    }
+    
     const getCampaigns = db.prepare('SELECT * FROM campaigns ORDER BY created_at DESC');
     const campaigns = getCampaigns.all();
     
     console.log(`📊 Total campaigns in database: ${campaigns.length}`);
+    if (campaigns.length > 0) {
+      console.log('🔍 First campaign:', campaigns[0]);
+    }
     
     const campaignsWithUrls = campaigns.map((campaign: any) => ({
       ...campaign,
@@ -133,6 +153,7 @@ router.get('/', (req, res) => {
     res.json(campaignsWithUrls);
   } catch (error) {
     console.error('❌ Failed to fetch campaigns from database:', error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack');
     res.status(500).json({ error: 'Failed to fetch campaigns' });
   }
 });
