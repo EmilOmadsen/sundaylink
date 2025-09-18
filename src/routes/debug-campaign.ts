@@ -74,8 +74,8 @@ router.get('/', (req, res) => {
                 document.getElementById('console-logs').innerHTML = logs.slice(-10).join('<br>');
             }
             
-            // API Configuration
-            const API_BASE = "";
+            // API Configuration - auto-detect current domain
+            const API_BASE = window.location.origin;
             console.log("API_BASE:", API_BASE);
             
             function testApiBase() {

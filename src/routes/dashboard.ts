@@ -24,7 +24,7 @@ router.get('/', (req, res) => {
 
   // Get API URL for frontend injection (safely JSON-encoded)
   const envConfig = {
-    VITE_API_URL: process.env.VITE_API_URL || ''
+    VITE_API_URL: process.env.VITE_API_URL || `${req.protocol}://${req.get('host')}`
   };
 
   res.send(`
