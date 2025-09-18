@@ -30,4 +30,4 @@ cookies.txt
 # Runtime
 *.pid
 *.seed
-*.pid.lock
+*.pid.locklogs/

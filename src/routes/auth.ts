@@ -1,8 +1,5 @@
 import express from 'express';
 import crypto from 'crypto';
-import authService from '../services/auth';
-import spotifyService from '../services/spotify';
-import sessionService from '../services/sessions';
 
 // Extend Express Request type to include user
 declare global {
@@ -13,7 +10,14 @@ declare global {
   }
 }
 
-const router = express.Router();
+// Factory function that creates router with injected services
+export function createAuthRouter(services: {
+  authService?: any;
+  spotifyService?: any;
+  sessionService?: any;
+} = {}) {
+  const router = express.Router();
+  const { authService, spotifyService, sessionService } = services;
 
 // Log Spotify configuration at startup
 console.log('🎵 Spotify OAuth Configuration:');
@@ -773,4 +777,10 @@ router.delete('/user/:email', async (req, res) => {
   }
 });
 
-export default router;
+  return router;
+}
+
+// Default export for backward compatibility
+export default function createDefaultAuthRouter() {
+  return createAuthRouter();
+}

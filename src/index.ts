@@ -315,17 +315,91 @@ async function startServer() {
   // Initialize database first
   const dbInitialized = await initializeDatabase();
   
-  // MINIMAL route registration to ensure server starts
-  console.log('📋 Registering minimal routes for debugging...');
+  // ROBUST route registration with dependency injection
+  console.log('📋 Registering routes with dependency injection...');
   
-  // Register API routes with individual error handling
+  // Initialize services with error handling
+  let campaignService: any = undefined;
+  let authService: any = undefined;
+  let spotifyService: any = undefined;
+  let sessionService: any = undefined;
+  
+  // Try to import and initialize services
   try {
-    console.log('📋 Importing campaigns API route...');
-    const campaignRoutes = (await import('./routes/campaigns')).default;
+    console.log('📦 Importing campaign service...');
+    campaignService = (await import('./services/campaigns')).default;
+    console.log('✅ Campaign service initialized');
+  } catch (error) {
+    console.error('❌ Campaign service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
+  }
+  
+  try {
+    console.log('📦 Importing auth service...');
+    authService = (await import('./services/auth')).default;
+    console.log('✅ Auth service initialized');
+  } catch (error) {
+    console.error('❌ Auth service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
+  }
+  
+  try {
+    console.log('📦 Importing spotify service...');
+    spotifyService = (await import('./services/spotify')).default;
+    console.log('✅ Spotify service initialized');
+  } catch (error) {
+    console.error('❌ Spotify service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
+  }
+  
+  try {
+    console.log('📦 Importing session service...');
+    sessionService = (await import('./services/sessions')).default;
+    console.log('✅ Session service initialized');
+  } catch (error) {
+    console.error('❌ Session service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
+  }
+  
+  // Register diagnostics endpoint
+  app.get('/__diagnostics', (req, res) => {
+    const mountedRoutes: string[] = [];
+    
+    // Extract mounted routes from app
+    app._router?.stack?.forEach((layer: any) => {
+      if (layer.route) {
+        mountedRoutes.push(`${Object.keys(layer.route.methods).join(',').toUpperCase()} ${layer.route.path}`);
+      } else if (layer.name === 'router' && layer.regexp) {
+        const path = layer.regexp.source.replace(/\\\//g, '/').replace(/\$.*/, '').replace(/\^.*?\//,'');
+        mountedRoutes.push(`* /${path}*`);
+      }
+    });
+    
+    res.json({
+      services: {
+        campaignService: !!campaignService,
+        authService: !!authService,
+        spotifyService: !!spotifyService,
+        sessionService: !!sessionService
+      },
+      database: {
+        initialized: dbInitialized
+      },
+      routes: mountedRoutes,
+      environment: {
+        NODE_ENV: process.env.NODE_ENV || 'development',
+        RAILWAY_ENVIRONMENT: !!process.env.RAILWAY_ENVIRONMENT,
+        PORT: process.env.PORT
+      },
+      timestamp: new Date().toISOString()
+    });
+  });
+  
+  // Register API routes with dependency injection
+  try {
+    console.log('📋 Creating campaigns API route with services...');
+    const { createCampaignsRouter } = await import('./routes/campaigns');
+    const campaignRoutes = createCampaignsRouter({ campaignService, authService });
     app.use('/api/campaigns', campaignRoutes);
     console.log('✅ Campaigns API routes mounted at /api/campaigns');
   } catch (error) {
-    console.error('❌ Failed to import campaigns route:', error);
+    console.error('❌ Failed to create campaigns route:', error);
     
     // Fallback: create minimal inline route
     app.get('/api/campaigns/test', (req, res) => {
@@ -334,14 +408,21 @@ async function startServer() {
     console.log('✅ Fallback campaigns route created');
   }
   
-  // Register essential frontend routes with individual error handling
+  // Register essential frontend routes with dependency injection
   try {
-    console.log('📋 Importing auth route...');
-    const authRoutes = (await import('./routes/auth')).default;
+    console.log('📋 Creating auth route with services...');
+    const { createAuthRouter } = await import('./routes/auth');
+    const authRoutes = createAuthRouter({ authService, spotifyService, sessionService });
     app.use('/auth', authRoutes);
     console.log('✅ Auth routes mounted');
   } catch (error) {
-    console.error('❌ Failed to import auth route:', error);
+    console.error('❌ Failed to create auth route:', error);
+    
+    // Fallback: create minimal auth route
+    app.get('/auth/login', (req, res) => {
+      res.status(503).json({ error: 'Auth service unavailable' });
+    });
+    console.log('✅ Fallback auth route created');
   }
   
   try {
@@ -378,7 +459,22 @@ async function startServer() {
 
   // 404 handler - catch any missed requests
   app.use((req, res) => {
-    res.status(404).json({ error: 'Not found' });
+    res.status(404).json({ error: 'Not found', path: req.path, method: req.method });
+  });
+
+  // Final error middleware - catch any unhandled errors
+  app.use((error: any, req: any, res: any, next: any) => {
+    console.error('💥 Unhandled error:', error);
+    
+    if (res.headersSent) {
+      return next(error);
+    }
+    
+    res.status(500).json({
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+      timestamp: new Date().toISOString()
+    });
   });
   
   const server = app.listen(PORT, "0.0.0.0", () => {
