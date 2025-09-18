@@ -362,6 +362,15 @@ async function startServer() {
     console.error('❌ Failed to import create-campaign route:', error);
   }
   
+  try {
+    console.log('📋 Importing debug-campaign route...');
+    const debugCampaignRoutes = (await import('./routes/debug-campaign')).default;
+    app.use('/debug-campaign', debugCampaignRoutes);
+    console.log('✅ Debug campaign routes mounted');
+  } catch (error) {
+    console.error('❌ Failed to import debug-campaign route:', error);
+  }
+  
   console.log('✅ Minimal routes registered - server will continue to start');
 
   // Add error handling middleware at the end
