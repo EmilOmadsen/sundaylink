@@ -217,6 +217,23 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Debug endpoint to check API_BASE configuration
+app.get('/debug-api-base', (req, res) => {
+  const envConfig = {
+    VITE_API_URL: process.env.VITE_API_URL || `${req.protocol}://${req.get('host')}`
+  };
+  
+  res.json({
+    envConfig,
+    process_env_VITE_API_URL: process.env.VITE_API_URL,
+    calculated_fallback: `${req.protocol}://${req.get('host')}`,
+    headers: {
+      host: req.get('host'),
+      protocol: req.protocol
+    }
+  });
+});
+
 // Additional Railway health check routes
 app.get('/healthz', (req, res) => {
   res.status(200).send('OK');
