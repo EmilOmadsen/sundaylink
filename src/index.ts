@@ -363,22 +363,45 @@ async function startServer() {
   }
   
   // Simple tracker link handler - directly in main server
-  app.get('/c/:campaignId', (req, res) => {
+  app.get('/c/:campaignId', async (req, res) => {
     const { campaignId } = req.params;
     console.log(`🔗 Tracker link clicked: ${campaignId}`);
     
-    // For now, just redirect to a test URL to verify the route works
-    console.log(`✅ Tracker link route is working! Campaign ID: ${campaignId}`);
-    res.send(`
-      <html>
-        <body>
-          <h1>Tracker Link Working!</h1>
-          <p>Campaign ID: ${campaignId}</p>
-          <p>This confirms the tracker link route is mounted correctly.</p>
-          <p>Next step: Connect to campaign database.</p>
-        </body>
-      </html>
-    `);
+    try {
+      // Make internal request to campaigns API
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      console.log(`📡 Fetching campaigns from: ${baseUrl}/api/campaigns`);
+      
+      // Use node-fetch or built-in fetch (Node 18+)
+      const response = await fetch(`${baseUrl}/api/campaigns`);
+      
+      if (!response.ok) {
+        console.error(`❌ API request failed: ${response.status}`);
+        return res.status(404).send('Campaign service unavailable');
+      }
+      
+      const campaigns = await response.json();
+      console.log(`📊 Found ${campaigns.length} campaigns`);
+      
+      const campaign = campaigns.find((c: any) => c.id === campaignId);
+      
+      if (!campaign) {
+        console.log(`❌ Campaign not found: ${campaignId}`);
+        return res.status(404).send('Campaign not found');
+      }
+      
+      if (campaign.status !== 'active') {
+        console.log(`❌ Campaign not active: ${campaignId} (status: ${campaign.status})`);
+        return res.status(410).send('Campaign is not active');
+      }
+      
+      console.log(`✅ Redirecting to: ${campaign.destination_url}`);
+      res.redirect(302, campaign.destination_url);
+      
+    } catch (error) {
+      console.error('❌ Error in tracker link handler:', error);
+      res.status(500).send('Internal server error');
+    }
   });
   
   console.log('✅ Minimal routes registered - server will continue to start');
