@@ -31,3 +31,4 @@ cookies.txt
 *.pid
 *.seed
 *.pid.locklogs/
+logs/
