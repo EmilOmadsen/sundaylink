@@ -261,6 +261,12 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false
 }));
+// Global request logger
+app.use((req, _res, next) => { 
+  console.log(req.method, req.url); 
+  next(); 
+});
+
 app.use(cors({
   origin: [
     "https://sundaylink-production.up.railway.app",
@@ -269,6 +275,7 @@ app.use(cors({
   ],
   credentials: true
 }));
+app.options("*", cors());
 
 // Serve static files from root directory and public directory
 app.use(express.static('.'));
@@ -286,6 +293,15 @@ app.get('/robots.txt', (req, res) => {
 });
 
 // Root route - redirect to login page (the actual app)
+// Guard for create-campaign - remove query parameters to prevent form submission navigation
+app.get("/create-campaign", (req, res, next) => {
+  if (Object.keys(req.query || {}).length > 0) {
+    console.log('🚫 Removing query parameters from create-campaign URL');
+    return res.redirect(303, "/create-campaign"); // fjern ?query
+  }
+  return next();
+});
+
 app.get('/', (req, res) => {
   console.log('🏠 Root request - redirecting to auth/login');
   res.redirect('/auth/login');
@@ -318,62 +334,53 @@ async function startServer() {
   // ROBUST route registration with dependency injection
   console.log('📋 Registering routes with dependency injection...');
   
-  // Initialize services with error handling
-  let campaignService: any = undefined;
-  let authService: any = undefined;
-  let spotifyService: any = undefined;
-  let sessionService: any = undefined;
-  
-  // Try to import and initialize services
-  try {
-    console.log('📦 Importing campaign service...');
-    campaignService = (await import('./services/campaigns')).default;
-    console.log('✅ Campaign service initialized');
-  } catch (error) {
-    console.error('❌ Campaign service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
+  // Initialize services with robust error handling
+  async function load(label: string, loader: () => Promise<any>) {
+    try { 
+      const service = await loader();
+      console.log(`✅ ${label} initialized`);
+      return service;
+    } catch (e) { 
+      console.error(`❌ [boot] ${label} init failed:`, e instanceof Error ? e.message : 'Unknown error');
+      return undefined; 
+    }
   }
   
-  try {
-    console.log('📦 Importing auth service...');
-    authService = (await import('./services/auth')).default;
-    console.log('✅ Auth service initialized');
-  } catch (error) {
-    console.error('❌ Auth service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
-  }
+  const campaignService = await load("campaignService", async () => {
+    return (await import('./services/campaigns')).default;
+  });
   
-  try {
-    console.log('📦 Importing spotify service...');
-    spotifyService = (await import('./services/spotify')).default;
-    console.log('✅ Spotify service initialized');
-  } catch (error) {
-    console.error('❌ Spotify service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
-  }
+  const authService = await load("authService", async () => {
+    return (await import('./services/auth')).default;
+  });
   
-  try {
-    console.log('📦 Importing session service...');
-    sessionService = (await import('./services/sessions')).default;
-    console.log('✅ Session service initialized');
-  } catch (error) {
-    console.error('❌ Session service failed to initialize:', error instanceof Error ? error.message : 'Unknown error');
-  }
+  const spotifyService = await load("spotifyService", async () => {
+    return (await import('./services/spotify')).default;
+  });
+  
+  const sessionService = await load("sessionService", async () => {
+    return (await import('./services/sessions')).default;
+  });
   
   // Register diagnostics endpoint
-  app.get('/__diagnostics', (req, res) => {
-    const mountedRoutes: string[] = [];
+  app.get('/__diagnostics', (_req, res) => {
+    const list = app._router?.stack?.filter((l: any) => l.route)?.map((l: any) => ({
+      path: l.route.path, 
+      methods: Object.keys(l.route.methods)
+    })) ?? [];
     
-    // Extract mounted routes from app
+    // Add router-mounted routes
     app._router?.stack?.forEach((layer: any) => {
-      if (layer.route) {
-        mountedRoutes.push(`${Object.keys(layer.route.methods).join(',').toUpperCase()} ${layer.route.path}`);
-      } else if (layer.name === 'router' && layer.regexp) {
+      if (layer.name === 'router' && layer.regexp) {
         const path = layer.regexp.source.replace(/\\\//g, '/').replace(/\$.*/, '').replace(/\^.*?\//,'');
-        mountedRoutes.push(`* /${path}*`);
+        list.push({ path: `/${path}*`, methods: ['*'] });
       }
     });
     
-    res.json({
-      services: {
-        campaignService: !!campaignService,
+    res.json({ 
+      routes: list, 
+      deps: { 
+        campaignService: !!campaignService, 
         authService: !!authService,
         spotifyService: !!spotifyService,
         sessionService: !!sessionService
@@ -381,7 +388,6 @@ async function startServer() {
       database: {
         initialized: dbInitialized
       },
-      routes: mountedRoutes,
       environment: {
         NODE_ENV: process.env.NODE_ENV || 'development',
         RAILWAY_ENVIRONMENT: !!process.env.RAILWAY_ENVIRONMENT,
@@ -391,65 +397,80 @@ async function startServer() {
     });
   });
   
-  // Register API routes with dependency injection
+  // ALWAYS mount API routes - use 503 responses if services unavailable
+  console.log('📋 Mounting API routes (always succeeds)...');
+  
+  // Campaigns API - ALWAYS mounted
   try {
-    console.log('📋 Creating campaigns API route with services...');
     const { createCampaignsRouter } = await import('./routes/campaigns');
     const campaignRoutes = createCampaignsRouter({ campaignService, authService });
     app.use('/api/campaigns', campaignRoutes);
     console.log('✅ Campaigns API routes mounted at /api/campaigns');
   } catch (error) {
-    console.error('❌ Failed to create campaigns route:', error);
+    console.error('❌ Failed to import campaigns route, creating fallback:', error);
     
-    // Fallback: create minimal inline route
-    app.get('/api/campaigns/test', (req, res) => {
-      res.json({ message: 'Fallback campaigns route working', timestamp: new Date().toISOString() });
+    // Fallback router that always responds with 503
+    const fallbackRouter = express.Router();
+    fallbackRouter.all('*', (req, res) => {
+      res.status(503).json({ message: 'campaignService unavailable' });
     });
-    console.log('✅ Fallback campaigns route created');
+    app.use('/api/campaigns', fallbackRouter);
+    console.log('✅ Fallback campaigns route created (503 responses)');
   }
   
-  // Register essential frontend routes with dependency injection
+  // ALWAYS mount frontend routes - create fallbacks if imports fail
+  console.log('📋 Mounting frontend routes (always succeeds)...');
+  
+  // Auth routes - ALWAYS mounted
   try {
-    console.log('📋 Creating auth route with services...');
     const { createAuthRouter } = await import('./routes/auth');
     const authRoutes = createAuthRouter({ authService, spotifyService, sessionService });
     app.use('/auth', authRoutes);
     console.log('✅ Auth routes mounted');
   } catch (error) {
-    console.error('❌ Failed to create auth route:', error);
+    console.error('❌ Failed to create auth route, creating fallback:', error);
     
-    // Fallback: create minimal auth route
+    // Fallback auth route
     app.get('/auth/login', (req, res) => {
-      res.status(503).json({ error: 'Auth service unavailable' });
+      res.status(503).json({ message: 'authService unavailable' });
     });
     console.log('✅ Fallback auth route created');
   }
   
+  // Dashboard routes - ALWAYS mounted
   try {
-    console.log('📋 Importing dashboard route...');
     const dashboardRoutes = (await import('./routes/dashboard')).default;
     app.use('/dashboard', dashboardRoutes);
     console.log('✅ Dashboard routes mounted');
   } catch (error) {
-    console.error('❌ Failed to import dashboard route:', error);
+    console.error('❌ Failed to import dashboard route, creating fallback:', error);
+    app.get('/dashboard', (req, res) => {
+      res.status(503).send('<h1>Dashboard temporarily unavailable</h1>');
+    });
+    console.log('✅ Fallback dashboard route created');
   }
   
+  // Create campaign routes - ALWAYS mounted
   try {
-    console.log('📋 Importing create-campaign route...');
     const createCampaignRoutes = (await import('./routes/create-campaign')).default;
     app.use('/create-campaign', createCampaignRoutes);
     console.log('✅ Create campaign routes mounted');
   } catch (error) {
-    console.error('❌ Failed to import create-campaign route:', error);
+    console.error('❌ Failed to import create-campaign route, creating fallback:', error);
+    app.get('/create-campaign', (req, res) => {
+      res.status(503).send('<h1>Create Campaign temporarily unavailable</h1>');
+    });
+    console.log('✅ Fallback create-campaign route created');
   }
   
+  // Debug routes - ALWAYS mounted
   try {
-    console.log('📋 Importing debug-campaign route...');
     const debugCampaignRoutes = (await import('./routes/debug-campaign')).default;
     app.use('/debug-campaign', debugCampaignRoutes);
     console.log('✅ Debug campaign routes mounted');
   } catch (error) {
     console.error('❌ Failed to import debug-campaign route:', error);
+    // No fallback needed for debug route
   }
   
   console.log('✅ Minimal routes registered - server will continue to start');
@@ -463,17 +484,18 @@ async function startServer() {
   });
 
   // Final error middleware - catch any unhandled errors
-  app.use((error: any, req: any, res: any, next: any) => {
-    console.error('💥 Unhandled error:', error);
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("[error]", err instanceof Error ? err.message : err);
     
     if (res.headersSent) {
-      return next(error);
+      return next(err);
     }
     
-    res.status(500).json({
-      error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
-      timestamp: new Date().toISOString()
+    res.status(err.status || 500).json({ 
+      message: err.message || "Server error",
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method
     });
   });
   
