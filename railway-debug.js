@@ -11,9 +11,8 @@ console.log('Creating server on port:', PORT);
 const server = http.createServer((req, res) => {
   console.log('REQUEST:', req.method, req.url);
   
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  
   if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end('{"status":"ok","timestamp":"' + new Date().toISOString() + '"}');
     return;
   }
@@ -30,6 +29,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   
+  res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end('{"message":"debug server working","url":"' + req.url + '"}');
 });
 
