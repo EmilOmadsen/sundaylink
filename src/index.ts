@@ -397,6 +397,40 @@ async function startServer() {
       
       // Track the click
       try {
+        // Import database and click service
+        let clickDb;
+        try {
+          clickDb = (await import('./services/database')).default;
+          console.log('✅ Database imported for click tracking');
+        } catch (dbImportError) {
+          console.error('❌ Failed to import database for clicks:', dbImportError);
+        }
+        
+        // Ensure clicks table exists
+        if (clickDb) {
+          try {
+            clickDb.exec(`
+              CREATE TABLE IF NOT EXISTS clicks (
+                id TEXT PRIMARY KEY,
+                campaign_id TEXT NOT NULL,
+                ip_hash TEXT NOT NULL,
+                user_agent TEXT,
+                utm_source TEXT,
+                utm_medium TEXT,
+                utm_campaign TEXT,
+                utm_content TEXT,
+                utm_term TEXT,
+                referrer TEXT,
+                clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+              )
+            `);
+            console.log('✅ Clicks table ensured');
+          } catch (tableError) {
+            console.error('❌ Failed to create clicks table:', tableError);
+          }
+        }
+        
         const clickService = (await import('./services/clicks')).default;
         
         // Extract client information
