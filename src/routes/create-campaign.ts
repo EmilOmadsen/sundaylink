@@ -285,37 +285,56 @@ router.get('/', (req, res) => {
                 return data;
             }
 
+            // Set form error message
+            function setFormError(message) {
+                const errorElement = document.getElementById('error-message');
+                if (errorElement) {
+                    errorElement.textContent = 'Could not create campaign: ' + message;
+                    errorElement.style.display = 'block';
+                }
+            }
+
+            // Clear form messages
+            function clearFormMessages() {
+                const successElement = document.getElementById('success-message');
+                const errorElement = document.getElementById('error-message');
+                if (successElement) successElement.style.display = 'none';
+                if (errorElement) errorElement.style.display = 'none';
+            }
+
             let generatedLinkUrl = '';
 
-            document.getElementById('campaign-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
+            // Main form submit handler
+            async function handleSubmit(event) {
+                // ALWAYS prevent default form submission
+                event.preventDefault();
                 console.log('🚀 Form submitted - creating campaign...');
                 
-                // Show loading state
-                const submitBtn = e.target.querySelector('button[type="submit"]');
-                const originalText = submitBtn.textContent;
-                submitBtn.textContent = '⏳ Creating Campaign...';
-                submitBtn.disabled = true;
-                
-                // Clear previous messages
-                document.getElementById('success-message').style.display = 'none';
-                document.getElementById('error-message').style.display = 'none';
-                
-                const formData = new FormData(e.target);
-                const data = Object.fromEntries(formData.entries());
-                
-                // Remove empty optional fields
-                Object.keys(data).forEach(key => {
-                    if (!data[key]) {
-                        delete data[key];
-                    }
-                });
-
                 try {
+                    // Show loading state
+                    const submitBtn = event.target.querySelector('button[type="submit"]');
+                    const originalText = submitBtn ? submitBtn.textContent : 'Create Campaign';
+                    if (submitBtn) {
+                        submitBtn.textContent = '⏳ Creating Campaign...';
+                        submitBtn.disabled = true;
+                    }
+                    
+                    // Clear previous messages
+                    clearFormMessages();
+                    
+                    const formData = new FormData(event.target);
+                    const data = Object.fromEntries(formData.entries());
+                    
+                    // Remove empty optional fields
+                    Object.keys(data).forEach(key => {
+                        if (!data[key]) {
+                            delete data[key];
+                        }
+                    });
+
                     // Build the correct absolute URL
                     const createCampaignUrl = API_BASE ? API_BASE + "/api/campaigns" : "/api/campaigns";
                     console.log('📡 Making request to:', createCampaignUrl);
-                    console.log('🍪 Document cookies:', document.cookie);
                     console.log('📋 Request data:', data);
                     
                     const result = await safeFetch(createCampaignUrl, {
@@ -331,39 +350,36 @@ router.get('/', (req, res) => {
                         console.log('✅ Campaign created successfully:', result);
                         
                         generatedLinkUrl = result.smart_link_url;
-                        document.getElementById('generated-link').textContent = generatedLinkUrl;
-                        document.getElementById('smart-link-result').style.display = 'block';
-                        document.getElementById('campaign-form').style.display = 'none';
+                        const generatedLinkElement = document.getElementById('generated-link');
+                        const smartLinkResultElement = document.getElementById('smart-link-result');
+                        const campaignFormElement = document.getElementById('campaign-form');
+                        
+                        if (generatedLinkElement) generatedLinkElement.textContent = generatedLinkUrl;
+                        if (smartLinkResultElement) smartLinkResultElement.style.display = 'block';
+                        if (campaignFormElement) campaignFormElement.style.display = 'none';
                         
                         // Set success message
                         const successMsg = document.getElementById('success-message');
-                        successMsg.innerHTML = '<strong>🎉 Campaign "' + result.name + '" created successfully!</strong><br>✅ Status: ACTIVE<br>🔗 Smart Link: Ready to share<br>📊 Tracking: All clicks will be monitored';
-                        successMsg.style.display = 'block';
+                        if (successMsg) {
+                            successMsg.innerHTML = '<strong>🎉 Campaign "' + result.name + '" created successfully!</strong><br>✅ Status: ACTIVE<br>🔗 Smart Link: Ready to share<br>📊 Tracking: All clicks will be monitored';
+                            successMsg.style.display = 'block';
+                        }
                         
                         // Scroll to the success section
-                        document.getElementById('smart-link-result').scrollIntoView({ behavior: 'smooth' });
+                        if (smartLinkResultElement) {
+                            smartLinkResultElement.scrollIntoView({ behavior: 'smooth' });
+                        }
                         
                         // Show alert as backup notification
                         alert('🎉 SUCCESS! Campaign "' + result.name + '" is now ACTIVE and ready to track clicks!');
-                        
-                        // Try to show browser notification
-                        if ('Notification' in window) {
-                            if (Notification.permission === 'granted') {
-                                new Notification('🎉 Campaign Active!', {
-                                    body: 'Smart link for "' + result.name + '" is ready to share',
-                                    icon: '🔗'
-                                });
-                            } else if (Notification.permission !== 'denied') {
-                                Notification.requestPermission().then(permission => {
-                                    if (permission === 'granted') {
-                                        new Notification('🎉 Campaign Active!', {
-                                            body: 'Smart link for "' + result.name + '" is ready to share'
-                                        });
-                                    }
-                                });
-                            }
-                        }
                     }
+                    
+                    // Reset button state on success
+                    if (submitBtn) {
+                        submitBtn.textContent = originalText;
+                        submitBtn.disabled = false;
+                    }
+                    
                 } catch (error) {
                     console.error('❌ Error creating campaign:', error);
                     
@@ -381,14 +397,24 @@ router.get('/', (req, res) => {
                         message = 'Connection error. Please check your network.';
                     }
                     
-                    // Set user-friendly error message
-                    document.getElementById('error-message').textContent = 'Could not create campaign: ' + message;
-                    document.getElementById('error-message').style.display = 'block';
+                    // Set user-friendly error message (never crash)
+                    setFormError(message);
                     console.error("Create campaign failed:", message);
                     
                     // Reset button state on error
-                    submitBtn.textContent = originalText;
-                    submitBtn.disabled = false;
+                    const submitBtn = event.target.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.textContent = 'Create Campaign';
+                        submitBtn.disabled = false;
+                    }
+                }
+            }
+
+            // Attach event listener when DOM is ready
+            document.addEventListener('DOMContentLoaded', function() {
+                const form = document.getElementById('campaign-form');
+                if (form) {
+                    form.addEventListener('submit', handleSubmit);
                 }
             });
 
