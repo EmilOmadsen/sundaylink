@@ -275,7 +275,6 @@ app.use(cors({
   ],
   credentials: true
 }));
-app.options("*", cors());
 
 // Serve static files from root directory and public directory
 app.use(express.static('.'));
