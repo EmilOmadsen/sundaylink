@@ -109,7 +109,11 @@ class SpotifyService {
         
         // Provide more specific error messages
         if (error.response?.status === 400) {
-          throw new Error(`Bad request: ${error.response?.data?.error_description || error.response?.data?.error || 'Invalid authorization code'}`);
+          const errorData = error.response?.data;
+          if (errorData?.error === 'invalid_grant') {
+            throw new Error(`Authorization code expired or invalid. Please try again quickly - Spotify codes expire in ~10 minutes.`);
+          }
+          throw new Error(`Bad request: ${errorData?.error_description || errorData?.error || 'Invalid authorization code'}`);
         } else if (error.response?.status === 401) {
           throw new Error(`Unauthorized: ${error.response?.data?.error_description || 'Invalid client credentials'}`);
         } else if (error.response?.status === 403) {
