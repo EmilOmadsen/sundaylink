@@ -976,6 +976,54 @@ app.post('/debug-create-sessions-for-connected-users', async (req, res) => {
   }
 });
 
+// Quick fix: Create session for specific click
+app.post('/debug-create-session-for-click/:clickId', async (req, res) => {
+  try {
+    const { clickId } = req.params;
+    const { default: database } = await import('./services/database');
+    const { default: sessionService } = await import('./services/sessions');
+    
+    // Get the most recent connected user
+    const connectedUser = database.prepare(`
+      SELECT id, email, display_name 
+      FROM users 
+      WHERE refresh_token_encrypted IS NOT NULL 
+      AND refresh_token_encrypted != ''
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get() as any;
+    
+    if (!connectedUser) {
+      return res.json({ error: 'No connected user found' });
+    }
+    
+    // Create session for this click
+    const session = sessionService.create({
+      click_id: clickId,
+      user_id: connectedUser.id
+    });
+    
+    // Trigger attribution
+    const { default: attributionService } = await import('./services/attribution');
+    const attributionResult = await attributionService.attributeNewPlays();
+    
+    res.json({
+      message: 'Session created for click',
+      click_id: clickId,
+      user_id: connectedUser.id,
+      user_email: connectedUser.email,
+      session_id: session.id,
+      attribution_result: attributionResult
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to create session for click',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Test Spotify API functionality
 app.get('/debug-test-spotify', async (req, res) => {
   try {
