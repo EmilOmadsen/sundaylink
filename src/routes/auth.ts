@@ -698,36 +698,72 @@ router.get('/spotify', (req, res) => {
 router.get('/spotify/callback', async (req, res) => {
   try {
     console.log('🎵 Spotify callback received');
-    console.log('📝 Query params:', req.query);
+    console.log('📝 Full URL:', req.url);
+    console.log('📝 Query params:', JSON.stringify(req.query, null, 2));
+    console.log('📝 Headers:', JSON.stringify(req.headers, null, 2));
     
     const { code, state, error } = req.query;
 
     if (error) {
       console.log('❌ Spotify authorization error:', error);
-      return res.status(400).send(`Spotify authorization error: ${error}`);
+      return res.status(400).json({
+        error: 'Spotify authorization failed',
+        spotify_error: error,
+        message: 'User denied authorization or there was an error with Spotify',
+        redirect_to: '/dashboard'
+      });
     }
 
-    if (!code || !state) {
-      console.log('❌ Missing authorization code or state');
-      return res.status(400).send('Missing authorization code or state');
+    if (!code) {
+      console.log('❌ Missing authorization code');
+      console.log('📝 Available query params:', Object.keys(req.query));
+      return res.status(400).json({
+        error: 'Missing authorization code',
+        message: 'Spotify did not provide an authorization code',
+        query_params: req.query,
+        redirect_to: '/dashboard'
+      });
+    }
+
+    if (!state) {
+      console.log('❌ Missing state parameter');
+      return res.status(400).json({
+        error: 'Missing state parameter',
+        message: 'Security state parameter is missing',
+        redirect_to: '/dashboard'
+      });
     }
 
     // Parse state parameter - could be either userId or campaign info
     let userId: number | undefined;
     let campaignInfo: any = null;
     
+    console.log('🔍 Parsing state parameter:', state);
+    
     try {
       // Try to decode base64 campaign state first
       const decodedState = Buffer.from(state as string, 'base64').toString('utf-8');
+      console.log('🔍 Decoded state string:', decodedState);
       campaignInfo = JSON.parse(decodedState);
       console.log('🎯 Campaign state decoded:', campaignInfo);
       
       // For campaign flows, we need to create a new user or find existing one
       // We'll use the Spotify profile email for this
     } catch (decodeError) {
+      console.log('⚠️ Could not decode campaign state, trying legacy format:', decodeError instanceof Error ? decodeError.message : decodeError);
       // Fallback: treat as userId (legacy behavior)
-      userId = parseInt(state as string);
-      console.log('👤 Legacy state - connecting Spotify for user ID:', userId);
+      try {
+        userId = parseInt(state as string);
+        console.log('👤 Legacy state - connecting Spotify for user ID:', userId);
+      } catch (parseError) {
+        console.log('❌ Could not parse state as userId either:', parseError);
+        return res.status(400).json({
+          error: 'Invalid state parameter',
+          message: 'Could not parse state parameter',
+          state_received: state,
+          redirect_to: '/dashboard'
+        });
+      }
     }
     
     // Exchange code for tokens
@@ -753,16 +789,35 @@ router.get('/spotify/callback', async (req, res) => {
       // Campaign flow - create or find user using Spotify user service
       console.log('🎯 Processing campaign flow...');
       
-      // Use the Spotify user service for OAuth users
-      updatedUser = userService.createOrUpdate({
-        spotify_user_id: spotifyUser.id,
-        email: spotifyUser.email || `${spotifyUser.id}@spotify.local`,
-        display_name: spotifyUser.display_name || spotifyUser.id,
-        refresh_token: tokens.refresh_token
-      });
+      // Check if userService is available
+      if (!userService) {
+        console.log('❌ User service not available, falling back to basic response');
+        return res.status(500).json({
+          error: 'User service unavailable',
+          message: 'Cannot process Spotify authentication at this time',
+          redirect_to: '/dashboard'
+        });
+      }
       
-      finalUserId = updatedUser.id;
-      console.log('✅ Spotify user created/updated:', { user_id: finalUserId, spotify_id: spotifyUser.id });
+      // Use the Spotify user service for OAuth users
+      try {
+        updatedUser = userService.createOrUpdate({
+          spotify_user_id: spotifyUser.id,
+          email: spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+          display_name: spotifyUser.display_name || spotifyUser.id,
+          refresh_token: tokens.refresh_token
+        });
+        
+        finalUserId = updatedUser.id;
+        console.log('✅ Spotify user created/updated:', { user_id: finalUserId, spotify_id: spotifyUser.id });
+      } catch (userError) {
+        console.log('❌ Failed to create/update user:', userError instanceof Error ? userError.message : userError);
+        return res.status(500).json({
+          error: 'Failed to create user account',
+          message: 'Could not save your Spotify account information',
+          redirect_to: '/dashboard'
+        });
+      }
       
       // Create session linking this user to the campaign click
       if (campaignInfo.clickId) {
@@ -844,8 +899,88 @@ router.get('/spotify/callback', async (req, res) => {
     console.log('✅ User updated with Spotify connection:', { user_id: updatedUser.id, email: updatedUser.email });
 
   } catch (error) {
-    console.error('Spotify callback error:', error);
-    res.status(500).send(`Failed to connect Spotify: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error('❌ Spotify callback error:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Provide a user-friendly error page instead of just JSON
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Spotify Connection Error - Sundaylink</title>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+              body {
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  min-height: 100vh;
+                  margin: 0;
+                  background: linear-gradient(135deg, #667eea, #764ba2);
+                  color: white;
+              }
+              .container {
+                  text-align: center;
+                  background: rgba(0,0,0,0.8);
+                  padding: 40px;
+                  border-radius: 12px;
+                  max-width: 500px;
+                  width: 100%;
+              }
+              .btn {
+                  background: #667eea;
+                  color: white;
+                  padding: 12px 24px;
+                  border: none;
+                  border-radius: 6px;
+                  font-size: 16px;
+                  text-decoration: none;
+                  display: inline-block;
+                  margin: 10px;
+                  transition: background 0.2s;
+              }
+              .btn:hover {
+                  background: #5a6fd8;
+              }
+              .error {
+                  background: rgba(220, 53, 69, 0.1);
+                  border: 2px solid #dc3545;
+                  border-radius: 8px;
+                  padding: 20px;
+                  margin: 20px 0;
+              }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <h1>❌ Spotify Connection Failed</h1>
+              <div class="error">
+                  <p><strong>There was an error connecting your Spotify account:</strong></p>
+                  <p>${error instanceof Error ? error.message : 'Unknown error'}</p>
+              </div>
+              
+              <p>Don't worry! You can try again:</p>
+              
+              <div>
+                  <a href="/debug-test-oauth" class="btn">🎵 Try Spotify OAuth Again</a>
+                  <a href="/dashboard" class="btn">📊 Back to Dashboard</a>
+                  <a href="/create-campaign" class="btn">➕ Create Campaign</a>
+              </div>
+              
+              <div style="margin-top: 30px; font-size: 14px; opacity: 0.8;">
+                  <p>If this problem persists, please check that:</p>
+                  <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
+                      <li>Your Spotify app is properly configured</li>
+                      <li>The redirect URI matches your Railway domain</li>
+                      <li>Your Spotify credentials are valid</li>
+                  </ul>
+              </div>
+          </div>
+      </body>
+      </html>
+    `);
   }
 });
 
