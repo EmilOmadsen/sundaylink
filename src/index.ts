@@ -1832,6 +1832,35 @@ app.use('/create-campaign', createCampaignRoutes);
   return server;
 }
 
+// Debug endpoint to test Spotify token exchange
+app.get('/debug-spotify-token-test', async (req, res) => {
+  try {
+    const { default: spotifyService } = await import('./services/spotify');
+    
+    if (!spotifyService) {
+      return res.status(503).json({ error: 'Spotify service not available' });
+    }
+
+    // Test with a fake code to see what error we get
+    try {
+      await spotifyService.exchangeCodeForTokens('fake-code-123');
+      res.json({ success: true, message: 'Token exchange succeeded (unexpected)' });
+    } catch (tokenError) {
+      res.json({
+        error: 'Token exchange failed as expected',
+        details: tokenError instanceof Error ? tokenError.message : tokenError,
+        spotify_config: {
+          client_id: process.env.SPOTIFY_CLIENT_ID ? 'Set' : 'Missing',
+          client_secret: process.env.SPOTIFY_CLIENT_SECRET ? 'Set' : 'Missing',
+          redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'Not set'
+        }
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Test failed', details: error instanceof Error ? error.message : error });
+  }
+});
+
 // Start the bulletproof server
 startServer().catch((error) => {
   logger.error('Failed to start bulletproof server', {

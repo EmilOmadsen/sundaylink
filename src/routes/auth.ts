@@ -636,8 +636,39 @@ router.get('/spotify/callback', async (req, res) => {
     
     // Exchange code for tokens
     console.log('🔄 Exchanging code for tokens...');
-    const tokens = await spotifyService.exchangeCodeForTokens(code as string);
-    console.log('✅ Tokens received:', { access_token: 'present', refresh_token: tokens.refresh_token ? 'present' : 'missing' });
+    console.log('🔧 Token exchange details:', {
+      code_length: (code as string).length,
+      spotify_service_available: !!spotifyService,
+      has_client_id: !!process.env.SPOTIFY_CLIENT_ID,
+      has_client_secret: !!process.env.SPOTIFY_CLIENT_SECRET
+    });
+    
+    let tokens;
+    try {
+      tokens = await spotifyService.exchangeCodeForTokens(code as string);
+      console.log('✅ Tokens received:', { access_token: 'present', refresh_token: tokens.refresh_token ? 'present' : 'missing' });
+    } catch (tokenError) {
+      console.error('❌ Token exchange failed:', tokenError instanceof Error ? tokenError.message : tokenError);
+      console.error('❌ Token error details:', {
+        error_type: tokenError instanceof Error ? tokenError.constructor.name : typeof tokenError,
+        code_length: (code as string).length,
+        spotify_credentials: {
+          client_id_set: !!process.env.SPOTIFY_CLIENT_ID,
+          client_secret_set: !!process.env.SPOTIFY_CLIENT_SECRET,
+          redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'not_set'
+        }
+      });
+      
+      return res.status(500).render('error', {
+        title: 'Spotify Connection Error - Sundaylink',
+        error: 'Failed to exchange authorization code',
+        details: tokenError instanceof Error ? tokenError.message : 'Unknown error',
+        debug_info: {
+          code_length: (code as string).length,
+          spotify_configured: !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET)
+        }
+      });
+    }
     
     // Get user profile
     console.log('👤 Getting Spotify user profile...');
