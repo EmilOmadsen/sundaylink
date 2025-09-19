@@ -68,11 +68,20 @@ router.get('/login', (req, res) => {
     'playlist-read-private'
   ].join(' ');
   
+  // Build redirect URI with proper protocol
+  const buildRedirectUri = () => {
+    const uri = process.env.SPOTIFY_REDIRECT_URI || '';
+    if (!uri.startsWith('http://') && !uri.startsWith('https://') && uri) {
+      return `https://${uri}`;
+    }
+    return uri;
+  };
+  
   const spotifyAuthUrl = new URL('https://accounts.spotify.com/authorize');
   spotifyAuthUrl.searchParams.set('response_type', 'code');
   spotifyAuthUrl.searchParams.set('client_id', process.env.SPOTIFY_CLIENT_ID || '');
   spotifyAuthUrl.searchParams.set('scope', scopes);
-  spotifyAuthUrl.searchParams.set('redirect_uri', process.env.SPOTIFY_REDIRECT_URI || '');
+  spotifyAuthUrl.searchParams.set('redirect_uri', buildRedirectUri());
   spotifyAuthUrl.searchParams.set('state', state);
   
   console.log(`🚀 Redirecting to Spotify: ${spotifyAuthUrl.toString()}`);

@@ -37,15 +37,48 @@ class SpotifyService {
   constructor() {
     this.clientId = process.env.SPOTIFY_CLIENT_ID || '';
     this.clientSecret = process.env.SPOTIFY_CLIENT_SECRET || '';
-    this.redirectUri = process.env.SPOTIFY_REDIRECT_URI || '';
+    
+    // Auto-generate redirect URI if not set, or ensure it has proper protocol
+    this.redirectUri = this.buildRedirectUri();
     
     if (!this.clientId || !this.clientSecret || !this.redirectUri) {
       console.warn('⚠️ Spotify credentials not fully configured. Some features may not work.');
       console.warn('📝 Please set the following environment variables:');
       console.warn('   - SPOTIFY_CLIENT_ID');
       console.warn('   - SPOTIFY_CLIENT_SECRET');
-      console.warn('   - SPOTIFY_REDIRECT_URI');
+      console.warn('   - SPOTIFY_REDIRECT_URI (optional - will auto-generate)');
       console.warn('🔗 Get credentials from: https://developer.spotify.com/dashboard');
+    }
+    
+    console.log('🎵 Spotify Service initialized:', {
+      client_id: this.clientId ? `${this.clientId.substring(0, 8)}...` : 'NOT_SET',
+      client_secret: this.clientSecret ? 'SET' : 'NOT_SET',
+      redirect_uri: this.redirectUri
+    });
+  }
+  
+  private buildRedirectUri(): string {
+    // If explicitly set, use it (but ensure it has protocol)
+    if (process.env.SPOTIFY_REDIRECT_URI) {
+      const uri = process.env.SPOTIFY_REDIRECT_URI;
+      // Add https:// if missing protocol
+      if (!uri.startsWith('http://') && !uri.startsWith('https://')) {
+        return `https://${uri}`;
+      }
+      return uri;
+    }
+    
+    // Auto-generate based on environment
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+    
+    if (isProduction) {
+      // For Railway production, use the Railway domain
+      const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN || 'sundaylink-production.up.railway.app';
+      return `https://${railwayDomain}/auth/spotify/callback`;
+    } else {
+      // For local development
+      const port = process.env.PORT || '3000';
+      return `http://localhost:${port}/auth/spotify/callback`;
     }
   }
 
