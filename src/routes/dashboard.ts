@@ -545,7 +545,7 @@ router.get('/', (req, res) => {
                         '</td>' +
                         '<td>' +
                         '<div class="smart-link">' + smartLink + '</div>' +
-                        '<button onclick="copyToClipboard(\"' + smartLink + '\", this)" class="copy-btn">Copy</button>' +
+                        '<button class="copy-btn" data-link="' + smartLink + '">Copy</button>' +
                         '</td>' +
                         '<td>' + (campaign.clicks || 0) + '</td>' +
                         '<td>0</td>' +
@@ -595,49 +595,53 @@ router.get('/', (req, res) => {
                 });
             }
 
-            function copyToClipboard(text, buttonElement) {
-                navigator.clipboard.writeText(text).then(() => {
-                    // Show visual feedback on the specific button that was clicked
-                    if (buttonElement) {
-                        const originalText = buttonElement.textContent;
-                        const originalBackground = buttonElement.style.background;
-                        const originalColor = buttonElement.style.color;
-                        
-                        buttonElement.textContent = '✅ Copied!';
-                        buttonElement.style.background = '#28a745';
-                        buttonElement.style.color = 'white';
-                        buttonElement.style.transform = 'scale(1.05)';
-                        
-                        setTimeout(() => {
-                            buttonElement.textContent = originalText;
-                            buttonElement.style.background = originalBackground;
-                            buttonElement.style.color = originalColor;
-                            buttonElement.style.transform = '';
-                        }, 2000);
+            // Event delegation for copy buttons
+            document.addEventListener('click', function(event) {
+                if (event.target.classList.contains('copy-btn')) {
+                    const button = event.target;
+                    const linkToCopy = button.getAttribute('data-link');
+                    
+                    if (linkToCopy) {
+                        navigator.clipboard.writeText(linkToCopy).then(() => {
+                            // Show visual feedback on the clicked button
+                            const originalText = button.textContent;
+                            const originalBackground = button.style.background;
+                            const originalColor = button.style.color;
+                            
+                            button.textContent = '✅ Copied!';
+                            button.style.background = '#28a745';
+                            button.style.color = 'white';
+                            button.style.transform = 'scale(1.05)';
+                            
+                            setTimeout(() => {
+                                button.textContent = originalText;
+                                button.style.background = originalBackground;
+                                button.style.color = originalColor;
+                                button.style.transform = '';
+                            }, 2000);
+                            
+                            console.log('📋 Link copied to clipboard:', linkToCopy);
+                        }).catch((error) => {
+                            console.error('Failed to copy to clipboard:', error);
+                            
+                            // Show error feedback on button
+                            const originalText = button.textContent;
+                            button.textContent = '❌ Failed';
+                            button.style.background = '#dc3545';
+                            button.style.color = 'white';
+                            
+                            setTimeout(() => {
+                                button.textContent = originalText;
+                                button.style.background = '';
+                                button.style.color = '';
+                            }, 2000);
+                            
+                            // Fallback: show the link in a prompt for manual copying
+                            prompt('Copy this link manually (Ctrl+C):', linkToCopy);
+                        });
                     }
-                    
-                    console.log('📋 Link copied to clipboard:', text);
-                }).catch((error) => {
-                    console.error('Failed to copy to clipboard:', error);
-                    
-                    // Show error feedback on button
-                    if (buttonElement) {
-                        const originalText = buttonElement.textContent;
-                        buttonElement.textContent = '❌ Failed';
-                        buttonElement.style.background = '#dc3545';
-                        buttonElement.style.color = 'white';
-                        
-                        setTimeout(() => {
-                            buttonElement.textContent = originalText;
-                            buttonElement.style.background = '';
-                            buttonElement.style.color = '';
-                        }, 2000);
-                    }
-                    
-                    // Fallback: show the link in a prompt for manual copying
-                    prompt('Copy this link manually (Ctrl+C):', text);
-                });
-            }
+                }
+            });
 
             async function toggleCampaign(campaignId) {
                 try {
