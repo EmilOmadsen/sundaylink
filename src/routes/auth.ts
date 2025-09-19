@@ -701,30 +701,80 @@ router.get('/spotify/callback', async (req, res) => {
           console.log('🔄 Attempting fallback user creation...');
           const { default: database } = await import('../services/database');
           
-          // Direct database insert as fallback
-          const insertUser = database.prepare(`
-            INSERT OR REPLACE INTO users (spotify_user_id, email, display_name, refresh_token_encrypted)
-            VALUES (?, ?, ?, ?)
-          `);
+          // Check if users table exists
+          const tableCheck = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+          const tableExists = tableCheck.get();
+          console.log('🔍 Users table exists:', !!tableExists);
           
-          const { encryptRefreshToken } = await import('../utils/encryption');
-          const encryptedToken = encryptRefreshToken(tokens.refresh_token);
+          if (!tableExists) {
+            // Create users table if it doesn't exist
+            console.log('🔧 Creating users table...');
+            database.exec(`
+              CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                spotify_user_id TEXT UNIQUE NOT NULL,
+                email TEXT,
+                display_name TEXT,
+                refresh_token_encrypted TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_polled_at DATETIME,
+                expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+              )
+            `);
+          }
           
-          insertUser.run(
-            spotifyUser.id,
-            spotifyUser.email || `${spotifyUser.id}@spotify.local`,
-            spotifyUser.display_name || spotifyUser.id,
-            encryptedToken
-          );
-          
-          // Get the created user
+          // Try to get existing user first
           const getUser = database.prepare('SELECT * FROM users WHERE spotify_user_id = ?');
-          updatedUser = getUser.get(spotifyUser.id);
-          finalUserId = updatedUser.id;
+          const existingUser = getUser.get(spotifyUser.id);
+          
+          if (existingUser) {
+            console.log('🔄 User exists, updating refresh token...');
+            const updateUser = database.prepare(`
+              UPDATE users 
+              SET refresh_token_encrypted = ?, last_polled_at = datetime('now')
+              WHERE spotify_user_id = ?
+            `);
+            
+            const { encryptRefreshToken } = await import('../utils/encryption');
+            const encryptedToken = encryptRefreshToken(tokens.refresh_token);
+            updateUser.run(encryptedToken, spotifyUser.id);
+            
+            updatedUser = getUser.get(spotifyUser.id);
+            finalUserId = updatedUser.id;
+          } else {
+            console.log('🆕 Creating new user...');
+            const insertUser = database.prepare(`
+              INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted)
+              VALUES (?, ?, ?, ?)
+            `);
+            
+            const { encryptRefreshToken } = await import('../utils/encryption');
+            const encryptedToken = encryptRefreshToken(tokens.refresh_token);
+            
+            const result = insertUser.run(
+              spotifyUser.id,
+              spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+              spotifyUser.display_name || spotifyUser.id,
+              encryptedToken
+            );
+            
+            console.log('📝 Insert result:', result);
+            
+            // Get the created user
+            updatedUser = getUser.get(spotifyUser.id);
+            if (!updatedUser) {
+              throw new Error('User was not created successfully');
+            }
+            finalUserId = updatedUser.id;
+          }
           
           console.log('✅ Fallback user creation successful:', { user_id: finalUserId });
         } catch (fallbackError) {
           console.error('❌ Fallback user creation also failed:', fallbackError);
+          console.error('❌ Fallback error details:', {
+            message: fallbackError instanceof Error ? fallbackError.message : fallbackError,
+            stack: fallbackError instanceof Error ? fallbackError.stack : 'No stack trace'
+          });
           
           return res.status(500).json({
             error: 'Failed to create user account',
@@ -734,7 +784,8 @@ router.get('/spotify/callback', async (req, res) => {
               spotify_user_id: spotifyUser.id,
               has_refresh_token: !!tokens.refresh_token,
               encryption_key_set: !!process.env.ENCRYPTION_KEY,
-              fallback_failed: true
+              fallback_failed: true,
+              fallback_error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
             }
           });
         }
