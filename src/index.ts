@@ -235,6 +235,92 @@ app.get('/debug-api-base', (req, res) => {
   });
 });
 
+// Comprehensive diagnostics endpoint for Spotify and analytics
+app.get('/debug-analytics', async (req, res) => {
+  try {
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      spotify_config: {
+        client_id: process.env.SPOTIFY_CLIENT_ID ? `${process.env.SPOTIFY_CLIENT_ID.substring(0, 8)}...` : 'NOT_SET',
+        client_secret: process.env.SPOTIFY_CLIENT_SECRET ? 'SET' : 'NOT_SET',
+        redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'NOT_SET'
+      },
+      database_config: {
+        path: process.env.DATABASE_PATH || './db/soundlink-lite.db',
+        exists: false
+      },
+      services_status: {
+        polling_service: 'unknown',
+        attribution_service: 'unknown'
+      },
+      database_stats: {
+        campaigns_count: 0,
+        clicks_count: 0,
+        users_count: 0,
+        plays_count: 0,
+        attributions_count: 0
+      }
+    };
+
+    // Check database
+    try {
+      const { default: database } = await import('./services/database');
+      diagnostics.database_config.exists = true;
+      
+      // Get table counts
+      try {
+        const campaignsCount = database.prepare('SELECT COUNT(*) as count FROM campaigns').get() as { count: number };
+        diagnostics.database_stats.campaigns_count = campaignsCount.count;
+      } catch (e) {}
+      
+      try {
+        const clicksCount = database.prepare('SELECT COUNT(*) as count FROM clicks').get() as { count: number };
+        diagnostics.database_stats.clicks_count = clicksCount.count;
+      } catch (e) {}
+      
+      try {
+        const usersCount = database.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+        diagnostics.database_stats.users_count = usersCount.count;
+      } catch (e) {
+        diagnostics.database_stats.users_count = -1; // Table doesn't exist
+      }
+      
+      try {
+        const playsCount = database.prepare('SELECT COUNT(*) as count FROM plays').get() as { count: number };
+        diagnostics.database_stats.plays_count = playsCount.count;
+      } catch (e) {
+        diagnostics.database_stats.plays_count = -1; // Table doesn't exist
+      }
+      
+      try {
+        const attributionsCount = database.prepare('SELECT COUNT(*) as count FROM attributions').get() as { count: number };
+        diagnostics.database_stats.attributions_count = attributionsCount.count;
+      } catch (e) {
+        diagnostics.database_stats.attributions_count = -1; // Table doesn't exist
+      }
+      
+    } catch (error) {
+      diagnostics.database_config.exists = false;
+    }
+
+    // Check polling service
+    try {
+      const { default: pollingService } = await import('./services/polling');
+      const status = pollingService.getStatus();
+      diagnostics.services_status.polling_service = status.is_running ? 'RUNNING' : 'STOPPED';
+    } catch (error) {
+      diagnostics.services_status.polling_service = 'ERROR';
+    }
+
+    res.json(diagnostics);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get diagnostics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Additional Railway health check routes
 app.get('/healthz', (req, res) => {
   res.status(200).send('OK');
@@ -247,6 +333,79 @@ app.get('/ping', (req, res) => {
 // Simple test endpoint for Railway
 app.get('/test', (req, res) => {
   res.status(200).send('Railway test endpoint working');
+});
+
+// Test endpoint to manually trigger polling
+app.get('/debug-trigger-polling', async (req, res) => {
+  try {
+    const { default: pollingService } = await import('./services/polling');
+    
+    // Get current status
+    const status = pollingService.getStatus();
+    
+    if (!status.is_running) {
+      return res.json({
+        error: 'Polling service is not running',
+        status,
+        message: 'Start the polling service first'
+      });
+    }
+    
+    // Manually trigger polling
+    await pollingService.pollAllUsers();
+    
+    res.json({
+      message: 'Polling cycle triggered manually',
+      status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to trigger polling',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Test endpoint to create a sample campaign with Spotify track
+app.post('/debug-create-test-campaign', async (req, res) => {
+  try {
+    const testCampaign = {
+      name: 'Test Spotify Campaign',
+      destination_url: 'https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh', // Sample Spotify track
+      spotify_track_id: '4iV5W9uYEdYUVa79Axb7Rh',
+      spotify_artist_id: '1Xyo4u8uXC1ZmMpatF05PJ', // Sample artist ID
+      spotify_playlist_id: null
+    };
+    
+    // Make internal request to create campaign
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const response = await fetch(`${baseUrl}/api/campaigns`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(testCampaign)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Campaign creation failed: ${response.status}`);
+    }
+    
+    const campaign = await response.json();
+    
+    res.json({
+      message: 'Test campaign created successfully',
+      campaign,
+      test_link: campaign.smart_link_url,
+      instructions: 'Click the test_link to test the full analytics flow'
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to create test campaign',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Trust proxy for getting real IP addresses
