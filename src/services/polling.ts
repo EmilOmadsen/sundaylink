@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import authService from './auth';
+import userService from './users'; // For Spotify OAuth users
 import spotifyService from './spotify';
 import playsService, { CreatePlayData } from './plays';
 import attributionService from './attribution';
@@ -57,7 +58,10 @@ class PollingService {
     try {
       logger.polling('Starting polling cycle');
       
-      const users = authService.getAllForPolling();
+      // Get users from both auth service (email users) and user service (Spotify OAuth users)
+      const authUsers = authService.getAllForPolling();
+      const spotifyUsers = userService.getAllForPolling();
+      const users = [...authUsers, ...spotifyUsers];
       logger.polling('Found users for polling', {
         userCount: users.length,
         users: users.map(u => ({ id: u.id, email: u.email }))
@@ -238,13 +242,25 @@ class PollingService {
     interval_minutes: number;
     connected_users: number;
   } {
-    const connectedUsers = authService.getAllForPolling();
-    
-    return {
-      is_running: this.isRunning,
-      interval_minutes: this.intervalMinutes,
-      connected_users: connectedUsers.length
-    };
+    try {
+      // Get users from both services
+      const authUsers = authService.getAllForPolling();
+      const spotifyUsers = userService.getAllForPolling();
+      const totalUsers = authUsers.length + spotifyUsers.length;
+      
+      return {
+        is_running: this.isRunning,
+        interval_minutes: this.intervalMinutes,
+        connected_users: totalUsers
+      };
+    } catch (error) {
+      console.error('Error getting polling status:', error);
+      return {
+        is_running: false,
+        interval_minutes: this.intervalMinutes,
+        connected_users: 0
+      };
+    }
   }
 
   private sleep(ms: number): Promise<void> {
