@@ -659,14 +659,14 @@ router.get('/spotify/callback', async (req, res) => {
         }
       });
       
-      return res.status(500).render('error', {
-        title: 'Spotify Connection Error - Sundaylink',
+      return res.status(500).json({
         error: 'Failed to exchange authorization code',
-        details: tokenError instanceof Error ? tokenError.message : 'Unknown error',
+        message: tokenError instanceof Error ? tokenError.message : 'Unknown error',
         debug_info: {
           code_length: (code as string).length,
           spotify_configured: !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET)
-        }
+        },
+        redirect_to: '/dashboard'
       });
     }
     
