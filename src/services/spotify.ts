@@ -70,6 +70,13 @@ class SpotifyService {
 
   async exchangeCodeForTokens(code: string): Promise<SpotifyTokenResponse> {
     try {
+      console.log('🔧 Token exchange request details:', {
+        code_length: code.length,
+        client_id: this.clientId,
+        redirect_uri: this.redirectUri,
+        has_client_secret: !!this.clientSecret
+      });
+
       const response = await axios.post(
         'https://accounts.spotify.com/api/token',
         new URLSearchParams({
@@ -86,10 +93,31 @@ class SpotifyService {
         }
       );
 
+      console.log('✅ Token exchange successful');
       return response.data;
     } catch (error) {
-      console.error('Error exchanging code for tokens:', error);
-      throw new Error('Failed to exchange authorization code');
+      console.error('❌ Error exchanging code for tokens:', error);
+      
+      // Enhanced error logging
+      if (axios.isAxiosError(error)) {
+        console.error('❌ Axios error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message
+        });
+        
+        // Provide more specific error messages
+        if (error.response?.status === 400) {
+          throw new Error(`Bad request: ${error.response?.data?.error_description || error.response?.data?.error || 'Invalid authorization code'}`);
+        } else if (error.response?.status === 401) {
+          throw new Error(`Unauthorized: ${error.response?.data?.error_description || 'Invalid client credentials'}`);
+        } else if (error.response?.status === 403) {
+          throw new Error(`Forbidden: ${error.response?.data?.error_description || 'Access denied'}`);
+        }
+      }
+      
+      throw new Error(`Failed to exchange authorization code: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
