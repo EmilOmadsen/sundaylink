@@ -396,6 +396,9 @@ router.get('/', (req, res) => {
                     <p>Smart link analytics and campaign management</p>
                 </div>
                 <div>
+                    <button onclick="connectSpotify()" class="btn" style="background: #1db954; margin-right: 10px;">
+                        🎵 Connect Spotify
+                    </button>
                     <button onclick="logout()" class="btn" style="background: #dc3545; margin-left: 10px;">Logout</button>
                 </div>
             </div>
@@ -780,6 +783,18 @@ router.get('/', (req, res) => {
 
             function refreshData() {
                 loadDashboard();
+            }
+
+            async function connectSpotify() {
+                try {
+                    console.log('🎵 Connecting to Spotify...');
+                    
+                    // Redirect to Spotify OAuth
+                    window.location.href = '/auth/spotify';
+                } catch (error) {
+                    console.error('❌ Spotify connection error:', error);
+                    alert('Failed to connect to Spotify. Please try again.');
+                }
             }
 
             async function logout() {

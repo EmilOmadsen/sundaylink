@@ -839,6 +839,52 @@ app.get('/test-oauth-flow/:campaignId', async (req, res) => {
   }
 });
 
+// Test Spotify API functionality
+app.get('/debug-test-spotify', async (req, res) => {
+  try {
+    const { default: spotifyService } = await import('./services/spotify');
+    
+    // Test 1: Check if Spotify service is configured
+    const isConfigured = !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET && process.env.SPOTIFY_REDIRECT_URI);
+    
+    // Test 2: Try to generate an auth URL
+    let authUrl = null;
+    try {
+      authUrl = spotifyService.getAuthUrl('test-state');
+    } catch (error) {
+      console.log('Auth URL generation failed:', error);
+    }
+    
+    // Test 3: Check environment variables (without exposing secrets)
+    const envCheck = {
+      SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID ? 'SET' : 'NOT SET',
+      SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET ? 'SET' : 'NOT SET',
+      SPOTIFY_REDIRECT_URI: process.env.SPOTIFY_REDIRECT_URI || 'NOT SET'
+    };
+    
+    res.json({
+      message: 'Spotify API Test Results',
+      tests: {
+        service_configured: isConfigured,
+        auth_url_generated: !!authUrl,
+        auth_url: authUrl
+      },
+      environment: envCheck,
+      recommendations: {
+        if_not_configured: 'Set SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, and SPOTIFY_REDIRECT_URI environment variables',
+        if_auth_url_fails: 'Check that all Spotify credentials are properly set',
+        test_oauth_flow: 'Try /test-oauth-flow/:campaignId to test complete OAuth flow'
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Spotify API test failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Ensure all analytics tables exist
 async function ensureAnalyticsTables() {
   try {
@@ -988,9 +1034,9 @@ app.get('/robots.txt', (req, res) => {
   res.send('User-agent: *\nDisallow:');
 });
 
-// Root route - redirect to login page
+// Root route - redirect to simple login page (original design)
 app.get('/', (req, res) => {
-  res.redirect('/auth/login');
+  res.redirect('/simple-auth/login');
 });
 
 // Debug route to test API routes are working
@@ -1023,6 +1069,7 @@ async function startServer() {
   try {
     // Import routes dynamically AFTER database is initialized
     const authRoutes = (await import('./routes/auth')).default;
+    const simpleAuthRoutes = (await import('./routes/simple-auth')).default;
     const dashboardRoutes = (await import('./routes/dashboard')).default;
     const createCampaignRoutes = (await import('./routes/create-campaign')).default;
     const campaignRoutes = (await import('./routes/campaigns')).default;
@@ -1030,9 +1077,10 @@ async function startServer() {
 
     // Register routes
     app.use('/auth', authRoutes);
+    app.use('/simple-auth', simpleAuthRoutes);
     app.use('/dashboard', dashboardRoutes);
     app.use('/create-campaign', createCampaignRoutes);
-app.use('/api/campaigns', campaignRoutes);
+    app.use('/api/campaigns', campaignRoutes);
     // app.use('/', clickRoutes); // Mount click routes at root level for /c/:campaignId - DISABLED FOR NOW
     
     console.log('✅ All routes registered successfully');
