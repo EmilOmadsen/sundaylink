@@ -790,6 +790,55 @@ app.post('/debug-create-session', async (req, res) => {
   }
 });
 
+// Test the complete OAuth flow for a campaign
+app.get('/test-oauth-flow/:campaignId', async (req, res) => {
+  const { campaignId } = req.params;
+  
+  try {
+    const { default: database } = await import('./services/database');
+    const { default: spotifyService } = await import('./services/spotify');
+    
+    // Get campaign details
+    const campaign = database.prepare('SELECT * FROM campaigns WHERE id = ?').get(campaignId) as any;
+    
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    // Generate Spotify OAuth URL with campaign info in state
+    const testClickId = 'test-click-' + Date.now();
+    const campaignState = Buffer.from(JSON.stringify({
+      campaignId: campaignId,
+      clickId: testClickId,
+      destinationUrl: campaign.destination_url
+    })).toString('base64');
+    
+    const authUrl = spotifyService.getAuthUrl(campaignState);
+    
+    res.json({
+      message: 'Test OAuth flow for campaign',
+      campaign: {
+        id: campaign.id,
+        name: campaign.name,
+        destination_url: campaign.destination_url
+      },
+      auth_url: authUrl,
+      instructions: {
+        step1: 'Click the auth_url to authenticate with Spotify',
+        step2: 'After authentication, you should be redirected to the destination_url',
+        step3: 'Check the dashboard to see if analytics data appears',
+        step4: 'Check Railway logs for session creation details'
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to create test OAuth flow',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Ensure all analytics tables exist
 async function ensureAnalyticsTables() {
   try {
