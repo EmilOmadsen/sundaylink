@@ -1024,6 +1024,91 @@ app.post('/debug-create-session-for-click/:clickId', async (req, res) => {
   }
 });
 
+// Create sessions for all recent clicks from connected users (bulk fix)
+app.post('/debug-create-all-sessions', async (req, res) => {
+  try {
+    const { default: database } = await import('./services/database');
+    const { default: sessionService } = await import('./services/sessions');
+    
+    console.log('🔗 Creating sessions for ALL recent clicks...');
+    
+    // Get all connected users
+    const connectedUsers = database.prepare(`
+      SELECT id, email, display_name 
+      FROM users 
+      WHERE refresh_token_encrypted IS NOT NULL 
+      AND refresh_token_encrypted != ''
+    `).all();
+    
+    console.log(`👥 Found ${connectedUsers.length} connected users`);
+    
+    if (connectedUsers.length === 0) {
+      return res.json({ error: 'No connected users found' });
+    }
+    
+    // Get the first connected user
+    const user = connectedUsers[0] as any;
+    console.log(`👤 Using user: ${user.id} (${user.email})`);
+    
+    // Get ALL recent clicks without sessions (last 48 hours)
+    const recentClicksWithoutSessions = database.prepare(`
+      SELECT c.*, ca.name as campaign_name
+      FROM clicks c
+      LEFT JOIN campaigns ca ON c.campaign_id = ca.id
+      LEFT JOIN sessions s ON c.id = s.click_id
+      WHERE c.clicked_at > datetime('now', '-48 hours')
+      AND s.id IS NULL
+      ORDER BY c.clicked_at DESC
+    `).all();
+    
+    console.log(`🔍 Found ${recentClicksWithoutSessions.length} recent clicks without sessions`);
+    
+    let sessionsCreated = 0;
+    const results = [];
+    
+    for (const click of recentClicksWithoutSessions) {
+      const clickTyped = click as any;
+      try {
+        const session = sessionService.create({
+          click_id: clickTyped.id,
+          user_id: user.id
+        });
+        
+        sessionsCreated++;
+        results.push({
+          click_id: clickTyped.id,
+          campaign_name: clickTyped.campaign_name,
+          session_id: session.id,
+          clicked_at: clickTyped.clicked_at
+        });
+        
+        console.log(`   ✅ Created session for click ${clickTyped.id} (${clickTyped.campaign_name})`);
+      } catch (error) {
+        console.log(`   ⚠️ Failed to create session for click ${clickTyped.id}:`, error);
+      }
+    }
+    
+    // Now trigger attribution for all users
+    console.log('🎯 Triggering attribution after session creation...');
+    const { default: attributionService } = await import('./services/attribution');
+    const attributionResult = await attributionService.attributeNewPlays();
+    
+    res.json({
+      message: 'Sessions created for all recent clicks',
+      sessions_created: sessionsCreated,
+      user_used: { id: user.id, email: user.email },
+      results: results,
+      attribution_result: attributionResult
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to create sessions for all clicks',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Test Spotify API functionality
 app.get('/debug-test-spotify', async (req, res) => {
   try {
