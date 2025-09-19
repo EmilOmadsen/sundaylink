@@ -775,8 +775,8 @@ router.get('/spotify/callback', async (req, res) => {
           } else {
             console.log('🆕 Creating new user...');
             const insertUser = database.prepare(`
-              INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted)
-              VALUES (?, ?, ?, ?)
+              INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted, auth_type)
+              VALUES (?, ?, ?, ?, ?)
             `);
             
             const { encryptRefreshToken } = await import('../utils/encryption');
@@ -786,7 +786,8 @@ router.get('/spotify/callback', async (req, res) => {
               spotifyUser.id,
               spotifyUser.email || `${spotifyUser.id}@spotify.local`,
               spotifyUser.display_name || spotifyUser.id,
-              encryptedToken
+              encryptedToken,
+              'spotify'
             );
             
             console.log('📝 Insert result:', result);

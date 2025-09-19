@@ -9,6 +9,7 @@ export interface User {
   spotify_user_id?: string;
   refresh_token_encrypted?: string;
   is_spotify_connected: boolean;
+  auth_type: 'email' | 'spotify';
   created_at: string;
   last_polled_at?: string;
   expires_at: string;
@@ -34,8 +35,8 @@ class AuthService {
   private get insertUser() {
     if (!this._insertUser) {
       this._insertUser = db.prepare(`
-        INSERT INTO users (email, password_hash, display_name)
-        VALUES (?, ?, ?)
+        INSERT INTO users (email, password_hash, display_name, auth_type)
+        VALUES (?, ?, ?, ?)
       `);
     }
     return this._insertUser;
@@ -85,7 +86,8 @@ class AuthService {
     this.insertUser.run(
       data.email,
       passwordHash,
-      data.display_name || null
+      data.display_name || null,
+      'email'
     );
 
     const user = this.getUserByEmail.get(data.email) as User;

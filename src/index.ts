@@ -1249,14 +1249,16 @@ async function ensureAnalyticsTables() {
     
     // Create all tables from the schema
     database.exec(`
-      -- Users table - stores Spotify users who authenticated
+      -- Users table - stores both email/password and Spotify OAuth users
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        spotify_user_id TEXT UNIQUE NOT NULL,
-        email TEXT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT,
         display_name TEXT,
-        refresh_token_encrypted TEXT NOT NULL,
-        is_spotify_connected BOOLEAN DEFAULT 1,
+        spotify_user_id TEXT,
+        refresh_token_encrypted TEXT,
+        is_spotify_connected BOOLEAN DEFAULT 0,
+        auth_type TEXT DEFAULT 'spotify' CHECK (auth_type IN ('email', 'spotify')),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_polled_at DATETIME,
         expires_at DATETIME DEFAULT (datetime('now', '+40 days'))

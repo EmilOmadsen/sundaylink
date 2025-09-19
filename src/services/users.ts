@@ -7,6 +7,7 @@ export interface User {
   email?: string;
   display_name?: string;
   refresh_token_encrypted: string;
+  auth_type: 'email' | 'spotify';
   created_at: string;
   last_polled_at?: string;
   expires_at: string;
@@ -21,8 +22,8 @@ export interface CreateUserData {
 
 class UserService {
   private insertUser = db.prepare(`
-    INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted, auth_type)
+    VALUES (?, ?, ?, ?, ?)
   `);
 
   private getUserBySpotifyId = db.prepare(`
@@ -67,7 +68,8 @@ class UserService {
         data.spotify_user_id,
         data.email || null,
         data.display_name || null,
-        encryptedRefreshToken
+        encryptedRefreshToken,
+        'spotify'
       );
 
       const newUser = this.getUserBySpotifyId.get(data.spotify_user_id) as User;
