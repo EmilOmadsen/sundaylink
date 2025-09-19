@@ -1861,6 +1861,30 @@ app.get('/debug-spotify-token-test', async (req, res) => {
   }
 });
 
+// Debug endpoint to check Spotify app configuration
+app.get('/debug-spotify-config', async (req, res) => {
+  try {
+    const { default: spotifyService } = await import('./services/spotify');
+    
+    res.json({
+      spotify_service_available: !!spotifyService,
+      configuration: {
+        client_id: process.env.SPOTIFY_CLIENT_ID ? `${process.env.SPOTIFY_CLIENT_ID.substring(0, 8)}...` : 'Missing',
+        client_secret: process.env.SPOTIFY_CLIENT_SECRET ? 'Set' : 'Missing',
+        redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'Not set',
+        expected_redirect_uri: 'https://sundaylink-production.up.railway.app/auth/spotify/callback'
+      },
+      instructions: {
+        spotify_app_settings: 'Go to https://developer.spotify.com/dashboard/applications',
+        redirect_uri_setting: 'Make sure the redirect URI is EXACTLY: https://sundaylink-production.up.railway.app/auth/spotify/callback',
+        note: 'The redirect URI must match exactly - no trailing slashes, no http vs https differences'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check config', details: error instanceof Error ? error.message : error });
+  }
+});
+
 // Start the bulletproof server
 startServer().catch((error) => {
   logger.error('Failed to start bulletproof server', {
