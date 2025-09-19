@@ -669,6 +669,14 @@ router.get('/spotify/callback', async (req, res) => {
       
       // Use the Spotify user service for OAuth users
       try {
+        console.log('🔧 Creating/updating user with data:', {
+          spotify_user_id: spotifyUser.id,
+          email: spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+          display_name: spotifyUser.display_name || spotifyUser.id,
+          has_refresh_token: !!tokens.refresh_token,
+          encryption_key_set: !!process.env.ENCRYPTION_KEY
+        });
+        
         updatedUser = userService.createOrUpdate({
           spotify_user_id: spotifyUser.id,
           email: spotifyUser.email || `${spotifyUser.id}@spotify.local`,
@@ -679,12 +687,57 @@ router.get('/spotify/callback', async (req, res) => {
         finalUserId = updatedUser.id;
         console.log('✅ Spotify user created/updated:', { user_id: finalUserId, spotify_id: spotifyUser.id });
       } catch (userError) {
-        console.log('❌ Failed to create/update user:', userError instanceof Error ? userError.message : userError);
-        return res.status(500).json({
-          error: 'Failed to create user account',
-          message: 'Could not save your Spotify account information',
-          redirect_to: '/dashboard'
+        console.error('❌ Failed to create/update user:', userError instanceof Error ? userError.message : userError);
+        console.error('❌ User error stack:', userError instanceof Error ? userError.stack : 'No stack trace');
+        console.error('❌ Environment check:', {
+          ENCRYPTION_KEY_set: !!process.env.ENCRYPTION_KEY,
+          userService_available: !!userService,
+          spotify_user_id: spotifyUser.id,
+          has_refresh_token: !!tokens.refresh_token
         });
+        
+        // Try fallback user creation
+        try {
+          console.log('🔄 Attempting fallback user creation...');
+          const { default: database } = await import('../services/database');
+          
+          // Direct database insert as fallback
+          const insertUser = database.prepare(`
+            INSERT OR REPLACE INTO users (spotify_user_id, email, display_name, refresh_token_encrypted)
+            VALUES (?, ?, ?, ?)
+          `);
+          
+          const { encryptRefreshToken } = await import('../utils/encryption');
+          const encryptedToken = encryptRefreshToken(tokens.refresh_token);
+          
+          insertUser.run(
+            spotifyUser.id,
+            spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+            spotifyUser.display_name || spotifyUser.id,
+            encryptedToken
+          );
+          
+          // Get the created user
+          const getUser = database.prepare('SELECT * FROM users WHERE spotify_user_id = ?');
+          updatedUser = getUser.get(spotifyUser.id);
+          finalUserId = updatedUser.id;
+          
+          console.log('✅ Fallback user creation successful:', { user_id: finalUserId });
+        } catch (fallbackError) {
+          console.error('❌ Fallback user creation also failed:', fallbackError);
+          
+          return res.status(500).json({
+            error: 'Failed to create user account',
+            message: 'Could not save your Spotify account information',
+            redirect_to: '/dashboard',
+            debug_info: {
+              spotify_user_id: spotifyUser.id,
+              has_refresh_token: !!tokens.refresh_token,
+              encryption_key_set: !!process.env.ENCRYPTION_KEY,
+              fallback_failed: true
+            }
+          });
+        }
       }
       
       // Create session linking this user to the campaign click
