@@ -12,13 +12,18 @@ router.get('/', (req, res) => {
   let spotifyConnectionSuccess = false;
 
   if (token) {
-    const decoded = authService.verifyToken(token);
-    if (decoded) {
-      user = authService.getById(decoded.userId);
-      if (user) {
-        spotifyConnected = user.is_spotify_connected;
-        spotifyConnectionSuccess = req.query.spotify_connected === 'true';
+    try {
+      const decoded = authService.verifyToken(token);
+      if (decoded) {
+        user = authService.getById(decoded.userId);
+        if (user) {
+          spotifyConnected = user.is_spotify_connected;
+          spotifyConnectionSuccess = req.query.spotify_connected === 'true';
+        }
       }
+    } catch (error) {
+      console.log('❌ Invalid or expired token, user will see unauthenticated view');
+      // Token is invalid, user will see unauthenticated dashboard
     }
   }
 
@@ -397,12 +402,36 @@ router.get('/', (req, res) => {
         </div>
 
         <div class="container">
+            ${!user ? `
+            <div class="auth-required" style="text-align: center; background: rgba(255,193,7,0.1); border: 2px solid #ffc107; border-radius: 8px; padding: 30px; margin-bottom: 30px;">
+                <h2>🔐 Authentication Required</h2>
+                <p><strong>To access your analytics dashboard, you need to authenticate with Spotify.</strong></p>
+                
+                <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left;">
+                    <h3>🎯 How to Get Analytics:</h3>
+                    <ol style="margin: 10px 0;">
+                        <li><strong>Click one of your tracker links</strong> (from your campaigns)</li>
+                        <li><strong>You'll be redirected to Spotify</strong> to authorize data collection</li>
+                        <li><strong>After authorization</strong>, your analytics will start appearing</li>
+                        <li><strong>Return to this dashboard</strong> to view your data</li>
+                    </ol>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    <a href="/debug-test-oauth" class="btn" style="background: #1DB954; margin: 10px;">🎵 Test Spotify OAuth</a>
+                    <a href="/auth/login" class="btn" style="margin: 10px;">📧 Email Login</a>
+                    <a href="/create-campaign" class="btn" style="margin: 10px;">➕ Create Campaign</a>
+                </div>
+            </div>
+            ` : ''}
+            
             ${spotifyConnectionSuccess ? `
             <div class="success-banner">
                 🎵 Spotify successfully connected! You can now track listening data.
             </div>
             ` : ''}
             
+            ${user ? `
             <div class="spotify-status">
                 <div class="stat-card">
                     <div class="stat-value">${spotifyConnected ? '✅ Connected' : '❌ Not Connected'}</div>
@@ -410,6 +439,7 @@ router.get('/', (req, res) => {
                     ${!spotifyConnected ? '<a href="/auth/spotify" class="btn btn-small">Connect Spotify</a>' : ''}
                 </div>
             </div>
+            ` : ''}
             
             <div class="actions">
                 <a href="/create-campaign" class="btn">+ New Campaign</a>
