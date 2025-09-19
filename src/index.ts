@@ -255,7 +255,9 @@ app.get('/debug-analytics', async (req, res) => {
       },
       services_status: {
         polling_service: 'unknown',
-        attribution_service: 'unknown'
+        attribution_service: 'unknown',
+        polling_details: null as any,
+        polling_error: null as any
       },
       database_stats: {
         campaigns_count: 0,
@@ -312,8 +314,14 @@ app.get('/debug-analytics', async (req, res) => {
       const { default: pollingService } = await import('./services/polling');
       const status = pollingService.getStatus();
       diagnostics.services_status.polling_service = status.is_running ? 'RUNNING' : 'STOPPED';
+      diagnostics.services_status.polling_details = {
+        connected_users: status.connected_users,
+        interval_minutes: status.interval_minutes,
+        is_running: status.is_running
+      };
     } catch (error) {
       diagnostics.services_status.polling_service = 'ERROR';
+      diagnostics.services_status.polling_error = error instanceof Error ? error.message : 'Unknown error';
     }
 
     res.json(diagnostics);
@@ -1096,16 +1104,27 @@ app.use('/api/campaigns', campaignRoutes);
     });
     
     // Start background services only if database is ready and not on Railway
-    if (dbInitialized && !IS_RAILWAY) {
+    if (dbInitialized) {
       console.log('🔄 Starting background services...');
       setTimeout(async () => {
         try {
           // Import services only after database is ready
-          const pollingService = (await import('./services/polling')).default;
-          const cleanupService = (await import('./services/cleanup')).default;
+          try {
+            const pollingService = (await import('./services/polling')).default;
+            console.log('✅ Polling service imported successfully');
+            pollingService.start();
+            console.log('✅ Polling service started');
+          } catch (pollingError) {
+            console.error('❌ Failed to start polling service:', pollingError);
+          }
           
-  pollingService.start();
-  cleanupService.start();
+          try {
+            const cleanupService = (await import('./services/cleanup')).default;
+            cleanupService.start();
+            console.log('✅ Cleanup service started');
+          } catch (cleanupError) {
+            console.error('❌ Failed to start cleanup service:', cleanupError);
+          }
           logManager.scheduleLogManagement();
           
           logger.info('All background services started successfully!');
