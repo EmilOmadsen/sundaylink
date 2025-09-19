@@ -798,7 +798,7 @@ router.get('/spotify/callback', async (req, res) => {
               updatedUser = getUser.get(spotifyUser.id);
               finalUserId = updatedUser.id;
             } else {
-              // Create completely new user
+              // Create completely new user with proper error handling
               const insertUser = database.prepare(`
                 INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted, auth_type)
                 VALUES (?, ?, ?, ?, ?)
@@ -807,22 +807,52 @@ router.get('/spotify/callback', async (req, res) => {
               const { encryptRefreshToken } = await import('../utils/encryption');
               const encryptedToken = encryptRefreshToken(tokens.refresh_token);
               
-              const result = insertUser.run(
-                spotifyUser.id,
-                spotifyUser.email || `${spotifyUser.id}@spotify.local`,
-                spotifyUser.display_name || spotifyUser.id,
-                encryptedToken,
-                'spotify'
-              );
-              
-              console.log('📝 Insert result:', result);
-              
-              // Get the created user
-              updatedUser = getUser.get(spotifyUser.id);
-              if (!updatedUser) {
-                throw new Error('User was not created successfully');
+              try {
+                const result = insertUser.run(
+                  spotifyUser.id,
+                  spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+                  spotifyUser.display_name || spotifyUser.id,
+                  encryptedToken,
+                  'spotify'
+                );
+                
+                console.log('📝 Insert result:', result);
+                
+                // Get the created user
+                updatedUser = getUser.get(spotifyUser.id);
+                if (!updatedUser) {
+                  throw new Error('User was not created successfully');
+                }
+                finalUserId = updatedUser.id;
+              } catch (insertError) {
+                // If insert fails due to email constraint, try to find and update existing user
+                if (insertError instanceof Error && insertError.message.includes('UNIQUE constraint failed: users.email')) {
+                  console.log('🔄 Email constraint failed in fallback, attempting to find and update existing user...');
+                  
+                  const existingEmailUser = getUserByEmail.get(spotifyUser.email || `${spotifyUser.id}@spotify.local`);
+                  if (existingEmailUser) {
+                    console.log('🔄 Found existing user by email, updating with Spotify info...');
+                    const updateUserWithSpotify = database.prepare(`
+                      UPDATE users 
+                      SET spotify_user_id = ?, refresh_token_encrypted = ?, is_spotify_connected = 1, auth_type = 'spotify'
+                      WHERE email = ?
+                    `);
+                    
+                    updateUserWithSpotify.run(
+                      spotifyUser.id,
+                      encryptedToken,
+                      spotifyUser.email || `${spotifyUser.id}@spotify.local`
+                    );
+                    
+                    updatedUser = getUser.get(spotifyUser.id);
+                    finalUserId = updatedUser.id;
+                  } else {
+                    throw insertError; // Re-throw if we can't find the existing user
+                  }
+                } else {
+                  throw insertError; // Re-throw if it's not an email constraint error
+                }
               }
-              finalUserId = updatedUser.id;
             }
           }
           
