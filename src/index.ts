@@ -1109,6 +1109,91 @@ app.post('/debug-create-all-sessions', async (req, res) => {
   }
 });
 
+// Direct attribution fix - create sessions for recent clicks and run attribution
+app.post('/debug-fix-johan-campaigns', async (req, res) => {
+  try {
+    const { default: database } = await import('./services/database');
+    const { default: sessionService } = await import('./services/sessions');
+    
+    console.log('🔧 Fixing johan campaigns attribution...');
+    
+    // Get connected user
+    const user = database.prepare(`
+      SELECT id, email FROM users 
+      WHERE refresh_token_encrypted IS NOT NULL 
+      ORDER BY created_at DESC LIMIT 1
+    `).get() as any;
+    
+    if (!user) {
+      return res.json({ error: 'No connected user found' });
+    }
+    
+    // Get johan campaign clicks
+    const johanClicks = database.prepare(`
+      SELECT c.*, ca.name as campaign_name
+      FROM clicks c
+      LEFT JOIN campaigns ca ON c.campaign_id = ca.id
+      WHERE ca.name LIKE '%johan%'
+      AND c.clicked_at > datetime('now', '-24 hours')
+    `).all();
+    
+    console.log(`🔍 Found ${johanClicks.length} johan campaign clicks`);
+    
+    let sessionsCreated = 0;
+    const results = [];
+    
+    for (const click of johanClicks) {
+      const clickTyped = click as any;
+      try {
+        // Check if session already exists
+        const existingSession = database.prepare(`
+          SELECT id FROM sessions WHERE click_id = ?
+        `).get(clickTyped.id);
+        
+        if (existingSession) {
+          console.log(`   ⏭️ Session already exists for click ${clickTyped.id}`);
+          continue;
+        }
+        
+        const session = sessionService.create({
+          click_id: clickTyped.id,
+          user_id: user.id
+        });
+        
+        sessionsCreated++;
+        results.push({
+          click_id: clickTyped.id,
+          campaign_name: clickTyped.campaign_name,
+          session_id: session.id
+        });
+        
+        console.log(`   ✅ Created session for ${clickTyped.campaign_name}`);
+      } catch (error) {
+        console.log(`   ⚠️ Failed: ${error}`);
+      }
+    }
+    
+    // Trigger attribution
+    console.log('🎯 Running attribution...');
+    const { default: attributionService } = await import('./services/attribution');
+    const attributionResult = await attributionService.attributeNewPlays();
+    
+    res.json({
+      message: 'Johan campaigns attribution fixed',
+      sessions_created: sessionsCreated,
+      user_used: user,
+      results: results,
+      attribution_result: attributionResult
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to fix johan campaigns',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Test Spotify API functionality
 app.get('/debug-test-spotify', async (req, res) => {
   try {
