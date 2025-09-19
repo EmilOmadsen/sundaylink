@@ -55,15 +55,48 @@ class UserService {
   createOrUpdate(data: CreateUserData): User {
     const encryptedRefreshToken = encryptRefreshToken(data.refresh_token);
     
-    // Check if user already exists
+    // Check if user already exists by Spotify ID
     const existingUser = this.getUserBySpotifyId.get(data.spotify_user_id) as User;
     
     if (existingUser) {
       // Update existing user's refresh token
       this.updateUserRefreshToken.run(encryptedRefreshToken, existingUser.id);
       return this.getUserById.get(existingUser.id) as User;
-    } else {
-      // Create new user
+    }
+    
+    // Check if user exists by email (for email/password users connecting Spotify)
+    const getUserByEmail = db.prepare(`
+      SELECT * FROM users WHERE email = ? AND expires_at > datetime('now')
+    `);
+    const existingEmailUser = getUserByEmail.get(data.email || `${data.spotify_user_id}@spotify.local`) as User;
+    
+    if (existingEmailUser) {
+      console.log('🔄 User with email already exists, updating with Spotify info...');
+      
+      // Update existing email user with Spotify info
+      const updateUserWithSpotify = db.prepare(`
+        UPDATE users 
+        SET spotify_user_id = ?, refresh_token_encrypted = ?, is_spotify_connected = 1, auth_type = 'spotify'
+        WHERE email = ?
+      `);
+      
+      updateUserWithSpotify.run(
+        data.spotify_user_id,
+        encryptedRefreshToken,
+        data.email || `${data.spotify_user_id}@spotify.local`
+      );
+      
+      // Return the updated user
+      const updatedUser = this.getUserBySpotifyId.get(data.spotify_user_id) as User;
+      if (!updatedUser) {
+        throw new Error('Failed to update user with Spotify info');
+      }
+      
+      return updatedUser;
+    }
+    
+    // Create completely new user
+    try {
       this.insertUser.run(
         data.spotify_user_id,
         data.email || null,
@@ -78,6 +111,33 @@ class UserService {
       }
 
       return newUser;
+    } catch (error) {
+      // If insert fails due to email constraint, try to find and update existing user
+      if (error instanceof Error && error.message.includes('UNIQUE constraint failed: users.email')) {
+        console.log('🔄 Email constraint failed, attempting to find and update existing user...');
+        
+        const existingEmailUser = getUserByEmail.get(data.email || `${data.spotify_user_id}@spotify.local`) as User;
+        if (existingEmailUser) {
+          const updateUserWithSpotify = db.prepare(`
+            UPDATE users 
+            SET spotify_user_id = ?, refresh_token_encrypted = ?, is_spotify_connected = 1, auth_type = 'spotify'
+            WHERE email = ?
+          `);
+          
+          updateUserWithSpotify.run(
+            data.spotify_user_id,
+            encryptedRefreshToken,
+            data.email || `${data.spotify_user_id}@spotify.local`
+          );
+          
+          const updatedUser = this.getUserBySpotifyId.get(data.spotify_user_id) as User;
+          if (updatedUser) {
+            return updatedUser;
+          }
+        }
+      }
+      
+      throw error;
     }
   }
 

@@ -775,30 +775,55 @@ router.get('/spotify/callback', async (req, res) => {
             finalUserId = updatedUser.id;
           } else {
             console.log('🆕 Creating new user...');
-            const insertUser = database.prepare(`
-              INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted, auth_type)
-              VALUES (?, ?, ?, ?, ?)
+            
+            // Check if user with this email already exists (for email/password users)
+            const getUserByEmail = database.prepare(`
+              SELECT * FROM users WHERE email = ? AND expires_at > datetime('now')
             `);
             
-            const { encryptRefreshToken } = await import('../utils/encryption');
-            const encryptedToken = encryptRefreshToken(tokens.refresh_token);
+            const existingEmailUser = getUserByEmail.get(spotifyUser.email || `${spotifyUser.id}@spotify.local`);
             
-            const result = insertUser.run(
-              spotifyUser.id,
-              spotifyUser.email || `${spotifyUser.id}@spotify.local`,
-              spotifyUser.display_name || spotifyUser.id,
-              encryptedToken,
-              'spotify'
-            );
-            
-            console.log('📝 Insert result:', result);
-            
-            // Get the created user
-            updatedUser = getUser.get(spotifyUser.id);
-            if (!updatedUser) {
-              throw new Error('User was not created successfully');
+            if (existingEmailUser) {
+              console.log('🔄 User with email already exists, updating with Spotify info...');
+              const updateUserWithSpotify = database.prepare(`
+                UPDATE users 
+                SET spotify_user_id = ?, refresh_token_encrypted = ?, is_spotify_connected = 1, auth_type = 'spotify'
+                WHERE email = ?
+              `);
+              
+              const { encryptRefreshToken } = await import('../utils/encryption');
+              const encryptedToken = encryptRefreshToken(tokens.refresh_token);
+              updateUserWithSpotify.run(spotifyUser.id, encryptedToken, spotifyUser.email || `${spotifyUser.id}@spotify.local`);
+              
+              updatedUser = getUser.get(spotifyUser.id);
+              finalUserId = updatedUser.id;
+            } else {
+              // Create completely new user
+              const insertUser = database.prepare(`
+                INSERT INTO users (spotify_user_id, email, display_name, refresh_token_encrypted, auth_type)
+                VALUES (?, ?, ?, ?, ?)
+              `);
+              
+              const { encryptRefreshToken } = await import('../utils/encryption');
+              const encryptedToken = encryptRefreshToken(tokens.refresh_token);
+              
+              const result = insertUser.run(
+                spotifyUser.id,
+                spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+                spotifyUser.display_name || spotifyUser.id,
+                encryptedToken,
+                'spotify'
+              );
+              
+              console.log('📝 Insert result:', result);
+              
+              // Get the created user
+              updatedUser = getUser.get(spotifyUser.id);
+              if (!updatedUser) {
+                throw new Error('User was not created successfully');
+              }
+              finalUserId = updatedUser.id;
             }
-            finalUserId = updatedUser.id;
           }
           
           console.log('✅ Fallback user creation successful:', { user_id: finalUserId });
