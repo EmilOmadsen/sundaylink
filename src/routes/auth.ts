@@ -16,11 +16,13 @@ const router = express.Router();
 let authService: any = null;
 let spotifyService: any = null;
 let sessionService: any = null;
+let userService: any = null; // For Spotify OAuth users
 
 try {
   authService = require('../services/auth').default;
   spotifyService = require('../services/spotify').default;
   sessionService = require('../services/sessions').default;
+  userService = require('../services/users').default;
   console.log('✅ Auth services imported successfully');
 } catch (error) {
   console.error('❌ Failed to import auth services:', error);
@@ -748,29 +750,19 @@ router.get('/spotify/callback', async (req, res) => {
     let updatedUser: any;
     
     if (campaignInfo) {
-      // Campaign flow - create or find user by Spotify email
+      // Campaign flow - create or find user using Spotify user service
       console.log('🎯 Processing campaign flow...');
       
-      let user = authService.getByEmail(spotifyUser.email);
-      if (!user) {
-        console.log('👤 Creating new user for campaign flow...');
-        user = await authService.register({
-          email: spotifyUser.email || `${spotifyUser.id}@spotify.local`,
-          password: 'spotify-oauth', // OAuth users don't need passwords
-          display_name: spotifyUser.display_name || spotifyUser.id
-        });
-      }
-      
-      finalUserId = user.id;
-      
-      // Connect Spotify to this user
-      updatedUser = await authService.connectSpotify({
-        user_id: finalUserId,
-        spotify_id: spotifyUser.id,
-        access_token: tokens.access_token,
-        encrypted_refresh_token: encryptedRefreshToken,
-        token_expires_at: new Date(Date.now() + tokens.expires_in * 1000)
+      // Use the Spotify user service for OAuth users
+      updatedUser = userService.createOrUpdate({
+        spotify_user_id: spotifyUser.id,
+        email: spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+        display_name: spotifyUser.display_name || spotifyUser.id,
+        refresh_token: tokens.refresh_token
       });
+      
+      finalUserId = updatedUser.id;
+      console.log('✅ Spotify user created/updated:', { user_id: finalUserId, spotify_id: spotifyUser.id });
       
       // Create session linking this user to the campaign click
       if (campaignInfo.clickId) {
@@ -785,8 +777,18 @@ router.get('/spotify/callback', async (req, res) => {
         }
       }
       
-      // Set auth cookie for the user
-      const authToken = authService.generateToken(updatedUser);
+      // Set auth cookie for the user (create a simple JWT token)
+      const jwt = require('jsonwebtoken');
+      const authToken = jwt.sign(
+        { 
+          userId: finalUserId, 
+          spotifyId: spotifyUser.id,
+          email: updatedUser.email 
+        },
+        process.env.JWT_SECRET || 'fallback-secret',
+        { expiresIn: '7d' }
+      );
+      
       res.cookie('auth_token', authToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',

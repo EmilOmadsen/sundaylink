@@ -183,6 +183,10 @@ async function initializeDatabase() {
     // Run migrations
     const migrationRunner = new MigrationRunner();
     await migrationRunner.run();
+    
+    // Ensure all analytics tables exist
+    await ensureAnalyticsTables();
+    
     console.log('✅ Database initialization and migrations completed successfully');
     return true;
   } catch (error) {
@@ -407,6 +411,95 @@ app.post('/debug-create-test-campaign', async (req, res) => {
     });
   }
 });
+
+// Ensure all analytics tables exist
+async function ensureAnalyticsTables() {
+  try {
+    const { default: database } = await import('./services/database');
+    
+    console.log('🔧 Ensuring all analytics tables exist...');
+    
+    // Create all tables from the schema
+    database.exec(`
+      -- Users table - stores Spotify users who authenticated
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        spotify_user_id TEXT UNIQUE NOT NULL,
+        email TEXT,
+        display_name TEXT,
+        refresh_token_encrypted TEXT NOT NULL,
+        is_spotify_connected BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_polled_at DATETIME,
+        expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+      );
+
+      -- Sessions table - links users to clicks for attribution
+      CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        click_id TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME DEFAULT (datetime('now', '+40 days')),
+        UNIQUE(click_id, user_id)
+      );
+
+      -- Plays table - stores recently played tracks from Spotify
+      CREATE TABLE IF NOT EXISTS plays (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        spotify_track_id TEXT NOT NULL,
+        spotify_artist_id TEXT,
+        played_at DATETIME NOT NULL,
+        track_name TEXT,
+        artist_name TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+      );
+
+      -- Attributions table - links plays to clicks with confidence scores
+      CREATE TABLE IF NOT EXISTS attributions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        play_id INTEGER NOT NULL,
+        click_id TEXT NOT NULL,
+        campaign_id TEXT NOT NULL,
+        confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+        time_diff_hours REAL NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+      );
+
+      -- Followers snapshots table - tracks follower counts over time
+      CREATE TABLE IF NOT EXISTS followers_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        spotify_id TEXT NOT NULL,
+        spotify_type TEXT NOT NULL CHECK (spotify_type IN ('artist', 'playlist')),
+        follower_count INTEGER NOT NULL,
+        snapshot_date DATE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME DEFAULT (datetime('now', '+40 days')),
+        UNIQUE(spotify_id, spotify_type, snapshot_date)
+      );
+    `);
+    
+    // Create indexes for performance
+    database.exec(`
+      CREATE INDEX IF NOT EXISTS idx_users_spotify_user_id ON users(spotify_user_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_click_id ON sessions(click_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_plays_user_id ON plays(user_id);
+      CREATE INDEX IF NOT EXISTS idx_plays_played_at ON plays(played_at);
+      CREATE INDEX IF NOT EXISTS idx_attributions_campaign_id ON attributions(campaign_id);
+      CREATE INDEX IF NOT EXISTS idx_attributions_play_id ON attributions(play_id);
+      CREATE INDEX IF NOT EXISTS idx_followers_spotify_id ON followers_snapshots(spotify_id);
+    `);
+    
+    console.log('✅ All analytics tables and indexes created successfully');
+  } catch (error) {
+    console.error('❌ Failed to create analytics tables:', error);
+    throw error;
+  }
+}
 
 // Trust proxy for getting real IP addresses
 app.set('trust proxy', true);
