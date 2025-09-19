@@ -849,6 +849,94 @@ router.get('/spotify/callback', async (req, res) => {
   }
 });
 
+// Logout endpoint
+router.post('/logout', (req, res) => {
+  console.log('🚪 POST /auth/logout - Logging out user');
+  
+  // Clear all auth-related cookies
+  res.clearCookie('auth_token');
+  res.clearCookie('spotify_user_id');
+  res.clearCookie('spotify_access_token');
+  res.clearCookie('oauth_state');
+  res.clearCookie('click_id'); // Optional: keep click tracking or clear it
+  
+  console.log('✅ User logged out successfully');
+  
+  res.json({
+    message: 'Logged out successfully',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Logout page (GET version for direct browser access)
+router.get('/logout', (req, res) => {
+  console.log('🚪 GET /auth/logout - Logging out user via GET');
+  
+  // Clear all auth-related cookies
+  res.clearCookie('auth_token');
+  res.clearCookie('spotify_user_id');
+  res.clearCookie('spotify_access_token');
+  res.clearCookie('oauth_state');
+  
+  console.log('✅ User logged out successfully');
+  
+  // Redirect to home page or show logout confirmation
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Logged Out - Sundaylink</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+            }
+            .container {
+                text-align: center;
+                background: rgba(0,0,0,0.8);
+                padding: 40px;
+                border-radius: 12px;
+                max-width: 400px;
+                width: 100%;
+            }
+            .btn {
+                background: #667eea;
+                color: white;
+                padding: 12px 24px;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+                text-decoration: none;
+                display: inline-block;
+                margin: 10px;
+                transition: background 0.2s;
+            }
+            .btn:hover {
+                background: #5a6fd8;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>👋 Logged Out</h1>
+            <p>You have been successfully logged out of Sundaylink.</p>
+            <p>Thank you for using our music analytics platform!</p>
+            <a href="/dashboard" class="btn">Back to Dashboard</a>
+            <a href="/create-campaign" class="btn">Create Campaign</a>
+        </div>
+    </body>
+    </html>
+  `);
+});
+
 // User data deletion endpoint (GDPR compliance)
 router.delete('/user/:email', async (req, res) => {
   try {

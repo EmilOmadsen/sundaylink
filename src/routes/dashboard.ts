@@ -385,8 +385,15 @@ router.get('/', (req, res) => {
     </head>
     <body>
         <div class="header">
-            <h1>🔗 Sundaylink Dashboard</h1>
-            <p>Smart link analytics and campaign management</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                    <h1>🔗 Sundaylink Dashboard</h1>
+                    <p>Smart link analytics and campaign management</p>
+                </div>
+                <div>
+                    <button onclick="logout()" class="btn" style="background: #dc3545; margin-left: 10px;">Logout</button>
+                </div>
+            </div>
         </div>
 
         <div class="container">
@@ -743,6 +750,34 @@ router.get('/', (req, res) => {
 
             function refreshData() {
                 loadDashboard();
+            }
+
+            async function logout() {
+                try {
+                    console.log('🚪 Logging out...');
+                    
+                    const response = await fetch(API_BASE + "/auth/logout", {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        console.log('✅ Logged out successfully');
+                        // Redirect to logout page or home
+                        window.location.href = '/auth/logout';
+                    } else {
+                        console.error('❌ Logout failed');
+                        // Even if logout fails, redirect anyway to clear client state
+                        window.location.href = '/auth/logout';
+                    }
+                } catch (error) {
+                    console.error('❌ Logout error:', error);
+                    // Fallback: redirect to logout page anyway
+                    window.location.href = '/auth/logout';
+                }
             }
 
             
