@@ -726,6 +726,70 @@ app.post('/debug-create-test-campaign', async (req, res) => {
   }
 });
 
+// Manual session creation for testing attribution
+app.post('/debug-create-session', async (req, res) => {
+  try {
+    const { default: database } = await import('./services/database');
+    const { default: sessionService } = await import('./services/sessions');
+    
+    // Get the most recent click and user
+    const recentClick = database.prepare('SELECT * FROM clicks ORDER BY clicked_at DESC LIMIT 1').get() as any;
+    const recentUser = database.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get() as any;
+    
+    if (!recentClick || !recentUser) {
+      return res.json({
+        error: 'No recent click or user found',
+        clicks_count: recentClick ? 1 : 0,
+        users_count: recentUser ? 1 : 0
+      });
+    }
+    
+    console.log('🔗 Creating manual session for testing...');
+    console.log(`   Click ID: ${recentClick.id}`);
+    console.log(`   User ID: ${recentUser.id}`);
+    console.log(`   Campaign ID: ${recentClick.campaign_id}`);
+    
+    // Create session linking user to click
+    try {
+      const session = sessionService.create({
+        click_id: recentClick.id,
+        user_id: recentUser.id
+      });
+      
+      console.log('✅ Manual session created:', session);
+      
+      // Now trigger attribution
+      const { default: attributionService } = await import('./services/attribution');
+      const attributionResult = await attributionService.attributeNewPlays();
+      
+      console.log('🎯 Attribution result:', attributionResult);
+      
+      res.json({
+        message: 'Manual session created and attribution triggered',
+        session: session,
+        attribution_result: attributionResult,
+        click: recentClick,
+        user: recentUser
+      });
+      
+    } catch (sessionError) {
+      console.log('❌ Failed to create session:', sessionError);
+      res.json({
+        error: 'Failed to create session',
+        message: sessionError instanceof Error ? sessionError.message : 'Unknown error',
+        click: recentClick,
+        user: recentUser
+      });
+    }
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to create test session',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Ensure all analytics tables exist
 async function ensureAnalyticsTables() {
   try {
