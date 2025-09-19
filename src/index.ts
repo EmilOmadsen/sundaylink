@@ -394,6 +394,74 @@ app.get('/debug-trigger-polling', async (req, res) => {
   }
 });
 
+// Debug endpoint to check recent polling activity
+app.get('/debug-polling-logs', async (req, res) => {
+  try {
+    const { default: database } = await import('./services/database');
+    
+    // Get recent users and their details
+    const users = database.prepare(`
+      SELECT id, spotify_user_id, email, display_name, 
+             refresh_token_encrypted IS NOT NULL as has_refresh_token,
+             last_polled_at, created_at
+      FROM users 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `).all();
+    
+    // Get recent plays
+    const plays = database.prepare(`
+      SELECT p.id, p.user_id, p.track_name, p.artist_name, p.played_at, p.created_at,
+             u.email, u.spotify_user_id
+      FROM plays p
+      JOIN users u ON p.user_id = u.id
+      ORDER BY p.created_at DESC
+      LIMIT 10
+    `).all();
+    
+    // Get database stats
+    const stats = {
+      users_count: database.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number },
+      plays_count: database.prepare('SELECT COUNT(*) as count FROM plays').get() as { count: number },
+      attributions_count: database.prepare('SELECT COUNT(*) as count FROM attributions').get() as { count: number },
+      campaigns_count: database.prepare('SELECT COUNT(*) as count FROM campaigns').get() as { count: number },
+      clicks_count: database.prepare('SELECT COUNT(*) as count FROM clicks').get() as { count: number }
+    };
+    
+    // Try to get polling service status
+    let pollingStatus = null;
+    try {
+      const { default: pollingService } = await import('./services/polling');
+      pollingStatus = pollingService.getStatus();
+    } catch (e) {
+      pollingStatus = { error: 'Could not get polling status' };
+    }
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      database_stats: stats,
+      polling_status: pollingStatus,
+      recent_users: users,
+      recent_plays: plays,
+      analysis: {
+        users_with_refresh_tokens: users.filter((u: any) => u.has_refresh_token).length,
+        users_never_polled: users.filter((u: any) => !u.last_polled_at).length,
+        plays_in_last_hour: plays.filter((p: any) => {
+          const playTime = new Date(p.created_at);
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          return playTime > oneHourAgo;
+        }).length
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get polling logs',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Detailed Spotify OAuth flow debugging
 app.get('/debug-spotify-flow/:campaignId', async (req, res) => {
   try {
