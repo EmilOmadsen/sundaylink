@@ -839,6 +839,60 @@ app.get('/test-oauth-flow/:campaignId', async (req, res) => {
   }
 });
 
+// Debug endpoint to check which clicks have sessions
+app.get('/debug-click-sessions', async (req, res) => {
+  try {
+    const { default: database } = await import('./services/database');
+    
+    // Get all clicks with their campaign info
+    const clicks = database.prepare(`
+      SELECT c.*, ca.name as campaign_name, ca.destination_url
+      FROM clicks c
+      LEFT JOIN campaigns ca ON c.campaign_id = ca.id
+      ORDER BY c.clicked_at DESC
+    `).all();
+    
+    // Get all sessions
+    const sessions = database.prepare(`
+      SELECT s.*, u.email, u.display_name, u.spotify_user_id
+      FROM sessions s
+      LEFT JOIN users u ON s.user_id = u.id
+      ORDER BY s.created_at DESC
+    `).all();
+    
+    // Get all attributions
+    const attributions = database.prepare(`
+      SELECT a.*, ca.name as campaign_name
+      FROM attributions a
+      LEFT JOIN campaigns ca ON a.campaign_id = ca.id
+      ORDER BY a.created_at DESC
+    `).all();
+    
+    res.json({
+      message: 'Click-Session-Attribution Analysis',
+      clicks: clicks,
+      sessions: sessions,
+      attributions: attributions,
+      analysis: {
+        total_clicks: clicks.length,
+        clicks_with_sessions: clicks.filter((c: any) => sessions.some((s: any) => s.click_id === c.id)).length,
+        total_sessions: sessions.length,
+        total_attributions: attributions.length,
+        campaigns_with_data: [...new Set(attributions.map((a: any) => a.campaign_name))],
+        campaigns_without_data: [...new Set(clicks.map((c: any) => c.campaign_name).filter((name: any) => 
+          !attributions.some((a: any) => a.campaign_name === name)
+        ))]
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to analyze click-session data',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Test Spotify API functionality
 app.get('/debug-test-spotify', async (req, res) => {
   try {
