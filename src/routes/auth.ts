@@ -689,15 +689,47 @@ router.get('/spotify/callback', async (req, res) => {
       
       // Create session linking this user to the campaign click
       if (campaignInfo.clickId) {
+        console.log('🔗 Attempting to create campaign session...');
+        console.log(`   Click ID: ${campaignInfo.clickId}`);
+        console.log(`   User ID: ${finalUserId}`);
+        console.log(`   Campaign ID: ${campaignInfo.campaignId}`);
+        
         try {
+          if (!sessionService) {
+            console.log('❌ Session service not available');
+            throw new Error('Session service not available');
+          }
+          
           const session = sessionService.create({
             click_id: campaignInfo.clickId,
             user_id: finalUserId
           });
-          console.log('✅ Campaign session created:', { click_id: campaignInfo.clickId, user_id: finalUserId, campaign_id: campaignInfo.campaignId });
+          
+          console.log('✅ Campaign session created successfully:', {
+            session_id: session.id,
+            click_id: campaignInfo.clickId,
+            user_id: finalUserId,
+            campaign_id: campaignInfo.campaignId,
+            expires_at: session.expires_at
+          });
+          
+          // Immediately trigger attribution after session creation
+          console.log('🎯 Triggering attribution after session creation...');
+          try {
+            const { default: attributionService } = await import('../services/attribution');
+            const attributionResult = await attributionService.attributeNewPlays();
+            console.log('🎯 Attribution result:', attributionResult);
+          } catch (attributionError) {
+            console.log('⚠️ Attribution failed (but session created):', attributionError instanceof Error ? attributionError.message : attributionError);
+          }
+          
         } catch (error) {
-          console.log('⚠️ Could not create campaign session:', error instanceof Error ? error.message : error);
+          console.log('❌ Failed to create campaign session:', error instanceof Error ? error.message : error);
+          console.log('   This means attribution will not work for this user/campaign');
         }
+      } else {
+        console.log('⚠️ No clickId in campaign info - cannot create session');
+        console.log('   Campaign info:', campaignInfo);
       }
       
       // Set auth cookie for the user (create a simple JWT token)
