@@ -72,10 +72,17 @@ class SpotifyService {
     try {
       console.log('🔧 Token exchange request details:', {
         code_length: code.length,
+        code_preview: code.substring(0, 10) + '...',
         client_id: this.clientId,
         redirect_uri: this.redirectUri,
-        has_client_secret: !!this.clientSecret
+        has_client_secret: !!this.clientSecret,
+        timestamp: new Date().toISOString()
       });
+
+      // Validate credentials before making request
+      if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+        throw new Error('Spotify credentials not properly configured. Please check your environment variables.');
+      }
 
       const response = await axios.post(
         'https://accounts.spotify.com/api/token',
@@ -88,36 +95,60 @@ class SpotifyService {
         }),
         {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'Soundlink-App/1.0'
+          },
+          timeout: 10000 // 10 second timeout
         }
       );
 
-      console.log('✅ Token exchange successful');
+      console.log('✅ Token exchange successful:', {
+        access_token_length: response.data.access_token?.length || 0,
+        refresh_token_length: response.data.refresh_token?.length || 0,
+        expires_in: response.data.expires_in,
+        scope: response.data.scope
+      });
+      
       return response.data;
     } catch (error) {
       console.error('❌ Error exchanging code for tokens:', error);
       
-      // Enhanced error logging
+      // Enhanced error logging with more details
       if (axios.isAxiosError(error)) {
-        console.error('❌ Axios error details:', {
+        const errorDetails = {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
-          message: error.message
-        });
+          message: error.message,
+          code: error.code,
+          config: {
+            url: error.config?.url,
+            method: error.config?.method,
+            timeout: error.config?.timeout
+          }
+        };
+        
+        console.error('❌ Axios error details:', errorDetails);
         
         // Provide more specific error messages
         if (error.response?.status === 400) {
           const errorData = error.response?.data;
+          console.error('❌ 400 Error Data:', errorData);
+          
           if (errorData?.error === 'invalid_grant') {
-            throw new Error(`Authorization code expired or invalid. Please try again quickly - Spotify codes expire in ~10 minutes.`);
+            throw new Error(`Authorization code expired or invalid. This usually happens when:
+1. The code has already been used (Spotify codes can only be used once)
+2. The code has expired (Spotify codes expire in ~10 minutes)
+3. There's a redirect URI mismatch between your app and Spotify dashboard
+Please try the OAuth flow again from the beginning.`);
+          } else if (errorData?.error === 'invalid_request') {
+            throw new Error(`Invalid request: ${errorData?.error_description || 'Check your client credentials and redirect URI'}`);
           }
           throw new Error(`Bad request: ${errorData?.error_description || errorData?.error || 'Invalid authorization code'}`);
         } else if (error.response?.status === 401) {
-          throw new Error(`Unauthorized: ${error.response?.data?.error_description || 'Invalid client credentials'}`);
+          throw new Error(`Unauthorized: ${error.response?.data?.error_description || 'Invalid client credentials - check SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET'}`);
         } else if (error.response?.status === 403) {
-          throw new Error(`Forbidden: ${error.response?.data?.error_description || 'Access denied'}`);
+          throw new Error(`Forbidden: ${error.response?.data?.error_description || 'Access denied - check your Spotify app permissions'}`);
         }
       }
       

@@ -569,6 +569,7 @@ router.get('/spotify/callback', async (req, res) => {
     console.log('📝 Full URL:', req.url);
     console.log('📝 Query params:', JSON.stringify(req.query, null, 2));
     console.log('📝 Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('📝 Timestamp:', new Date().toISOString());
     
     const { code, state, error } = req.query;
 

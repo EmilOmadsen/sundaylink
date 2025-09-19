@@ -1868,22 +1868,65 @@ app.get('/debug-spotify-config', async (req, res) => {
   try {
     const { default: spotifyService } = await import('./services/spotify');
     
+    const currentDomain = req.get('host');
+    const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+    const fullCurrentUrl = `${protocol}://${currentDomain}`;
+    const recommendedRedirectUri = `${fullCurrentUrl}/auth/spotify/callback`;
+    
     res.json({
       spotify_service_available: !!spotifyService,
+      current_request_info: {
+        domain: currentDomain,
+        protocol: protocol,
+        full_url: fullCurrentUrl,
+        timestamp: new Date().toISOString()
+      },
       configuration: {
         client_id: process.env.SPOTIFY_CLIENT_ID ? `${process.env.SPOTIFY_CLIENT_ID.substring(0, 8)}...` : 'Missing',
         client_secret: process.env.SPOTIFY_CLIENT_SECRET ? 'Set' : 'Missing',
         redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'Not set',
-        expected_redirect_uri: 'https://sundaylink-production.up.railway.app/auth/spotify/callback'
+        recommended_redirect_uri: recommendedRedirectUri,
+        redirect_uri_matches: process.env.SPOTIFY_REDIRECT_URI === recommendedRedirectUri
       },
       instructions: {
         spotify_app_settings: 'Go to https://developer.spotify.com/dashboard/applications',
-        redirect_uri_setting: 'Make sure the redirect URI is EXACTLY: https://sundaylink-production.up.railway.app/auth/spotify/callback',
-        note: 'The redirect URI must match exactly - no trailing slashes, no http vs https differences'
+        redirect_uri_setting: `Make sure the redirect URI is EXACTLY: ${recommendedRedirectUri}`,
+        note: 'The redirect URI must match exactly - no trailing slashes, no http vs https differences',
+        fix_redirect_uri: `Set SPOTIFY_REDIRECT_URI=${recommendedRedirectUri} in your Railway environment variables`
       }
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to check config', details: error instanceof Error ? error.message : error });
+  }
+});
+
+// Debug endpoint to test OAuth flow and check for issues
+app.get('/debug-oauth-flow', async (req, res) => {
+  try {
+    const { default: spotifyService } = await import('./services/spotify');
+    
+    // Generate a test auth URL
+    const testState = 'debug_test_' + Date.now();
+    const authUrl = spotifyService.getAuthUrl(testState);
+    
+    res.json({
+      test_auth_url: authUrl,
+      test_state: testState,
+      instructions: {
+        step1: 'Copy the test_auth_url and paste it in your browser',
+        step2: 'Complete the Spotify authorization',
+        step3: 'Check the callback URL for any errors',
+        step4: 'If you get "invalid_grant", the code was already used - this is normal for testing',
+        note: 'This is a test flow - use it to verify your redirect URI is correct'
+      },
+      troubleshooting: {
+        invalid_grant: 'This means the authorization code was already used (normal for testing)',
+        redirect_uri_mismatch: 'Check that your Spotify app redirect URI matches your current domain',
+        code_expired: 'Authorization codes expire in ~10 minutes'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate test OAuth flow', details: error instanceof Error ? error.message : error });
   }
 });
 
