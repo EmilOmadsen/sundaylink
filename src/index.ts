@@ -394,6 +394,55 @@ app.get('/debug-trigger-polling', async (req, res) => {
   }
 });
 
+// Endpoint to fix encryption key issues by clearing invalid refresh tokens
+app.post('/debug-fix-encryption-keys', async (req, res) => {
+  try {
+    const { default: database } = await import('./services/database');
+    
+    console.log('🔧 [FIX] Starting encryption key fix...');
+    
+    // Get all users with refresh tokens
+    const usersWithTokens = database.prepare(`
+      SELECT id, spotify_user_id, email, refresh_token_encrypted IS NOT NULL as has_token
+      FROM users 
+      WHERE refresh_token_encrypted IS NOT NULL
+    `).all();
+    
+    console.log(`🔍 [FIX] Found ${usersWithTokens.length} users with refresh tokens`);
+    
+    // Clear refresh tokens for users (they'll need to re-authenticate)
+    const clearTokens = database.prepare(`
+      UPDATE users 
+      SET refresh_token_encrypted = NULL, 
+          last_polled_at = NULL
+      WHERE refresh_token_encrypted IS NOT NULL
+    `);
+    
+    const result = clearTokens.run();
+    
+    console.log(`✅ [FIX] Cleared refresh tokens for ${result.changes} users`);
+    
+    res.json({
+      message: 'Encryption key fix applied',
+      users_affected: result.changes,
+      users_found: usersWithTokens.length,
+      note: 'Users will need to re-authenticate with Spotify to collect play data',
+      next_steps: [
+        '1. Users click tracker links',
+        '2. Complete Spotify OAuth again', 
+        '3. New refresh tokens will be encrypted with current key',
+        '4. Polling will work properly'
+      ]
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to fix encryption keys',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Debug endpoint to check recent polling activity
 app.get('/debug-polling-logs', async (req, res) => {
   try {
