@@ -347,7 +347,7 @@ app.get('/test', (req, res) => {
   res.status(200).send('Railway test endpoint working');
 });
 
-// Test endpoint to manually trigger polling
+// Test endpoint to manually trigger polling with detailed logging
 app.get('/debug-trigger-polling', async (req, res) => {
   try {
     const { default: pollingService } = await import('./services/polling');
@@ -363,13 +363,28 @@ app.get('/debug-trigger-polling', async (req, res) => {
       });
     }
     
+    console.log('🚀 [DEBUG] Manual polling triggered via API endpoint');
+    
     // Manually trigger polling
     await pollingService.pollAllUsers();
+    
+    // Wait a moment then check database stats
+    setTimeout(async () => {
+      try {
+        const { default: database } = await import('./services/database');
+        const playsCount = database.prepare('SELECT COUNT(*) as count FROM plays').get() as { count: number };
+        const usersCount = database.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+        console.log(`📊 [DEBUG] After polling - Users: ${usersCount.count}, Plays: ${playsCount.count}`);
+      } catch (e) {
+        console.log('📊 [DEBUG] Could not check post-polling stats');
+      }
+    }, 1000);
     
     res.json({
       message: 'Polling cycle triggered manually',
       status,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      note: 'Check Railway logs for detailed polling debug information'
     });
   } catch (error) {
     res.status(500).json({

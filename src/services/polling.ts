@@ -62,6 +62,13 @@ class PollingService {
       const authUsers = authService.getAllForPolling();
       const spotifyUsers = userService.getAllForPolling();
       const users = [...authUsers, ...spotifyUsers];
+      
+      console.log(`🔍 [POLLING DEBUG] Found ${authUsers.length} auth users and ${spotifyUsers.length} Spotify users`);
+      console.log(`👥 [POLLING DEBUG] Total users for polling: ${users.length}`);
+      users.forEach(user => {
+        console.log(`   - User ${user.id}: ${user.email || 'no-email'} (has_refresh_token: ${!!user.refresh_token_encrypted})`);
+      });
+      
       logger.polling('Found users for polling', {
         userCount: users.length,
         users: users.map(u => ({ id: u.id, email: u.email }))
@@ -122,8 +129,11 @@ class PollingService {
 
   async pollUserPlays(user: any) {
     const startTime = Date.now();
+    console.log(`🎵 [POLLING DEBUG] Starting pollUserPlays for user ${user.id} (${user.email})`);
+    
     try {
       if (!user.refresh_token_encrypted) {
+        console.log(`❌ [POLLING DEBUG] User ${user.id} has no refresh token`);
         logger.warn(`User has no refresh token`, {
           userId: user.id,
           email: user.email
@@ -131,18 +141,47 @@ class PollingService {
         return;
       }
 
+      console.log(`🔄 [POLLING DEBUG] User ${user.id} has refresh token, attempting to refresh access token...`);
+
       // Get fresh access token
-      const { access_token } = await spotifyService.refreshAccessToken(user.refresh_token_encrypted);
+      let access_token;
+      try {
+        const tokenResult = await spotifyService.refreshAccessToken(user.refresh_token_encrypted);
+        access_token = tokenResult.access_token;
+        console.log(`✅ [POLLING DEBUG] User ${user.id} access token refreshed successfully`);
+      } catch (tokenError) {
+        console.log(`❌ [POLLING DEBUG] User ${user.id} failed to refresh access token:`, tokenError instanceof Error ? tokenError.message : tokenError);
+        throw tokenError;
+      }
       
+      console.log(`📡 [POLLING DEBUG] User ${user.id} fetching recently played tracks...`);
+
       // Fetch recently played tracks
-      const recentlyPlayed = await spotifyService.getRecentlyPlayed(access_token, 50);
+      let recentlyPlayed;
+      try {
+        recentlyPlayed = await spotifyService.getRecentlyPlayed(access_token, 50);
+        console.log(`📊 [POLLING DEBUG] User ${user.id} received ${recentlyPlayed?.items?.length || 0} recent tracks`);
+      } catch (apiError) {
+        console.log(`❌ [POLLING DEBUG] User ${user.id} failed to fetch recently played:`, apiError instanceof Error ? apiError.message : apiError);
+        throw apiError;
+      }
       
       if (!recentlyPlayed.items || recentlyPlayed.items.length === 0) {
+        console.log(`⚠️ [POLLING DEBUG] User ${user.id} has no recent plays`);
         logger.debug(`No recent plays for user`, {
           userId: user.id,
           email: user.email
         });
-        authService.updateLastPolled(user.id);
+        // Update last polled for both user services
+        try {
+          authService.updateLastPolled(user.id);
+        } catch (e) {
+          try {
+            userService.updateLastPolled(user.id);
+          } catch (e2) {
+            console.log(`⚠️ [POLLING DEBUG] Could not update last polled for user ${user.id}`);
+          }
+        }
         return;
       }
 
@@ -156,11 +195,22 @@ class PollingService {
         artist_name: item.track.artists.map(a => a.name).join(', ')
       }));
 
+      console.log(`💾 [POLLING DEBUG] User ${user.id} converting ${plays.length} tracks to database format`);
+      console.log(`🎵 [POLLING DEBUG] User ${user.id} sample tracks:`, plays.slice(0, 2).map(p => `${p.track_name} by ${p.artist_name}`));
+
       // Save plays to database (bulk insert)
-      const createdCount = playsService.createBulk(plays);
+      let createdCount;
+      try {
+        createdCount = playsService.createBulk(plays);
+        console.log(`✅ [POLLING DEBUG] User ${user.id} saved ${createdCount} new plays to database`);
+      } catch (dbError) {
+        console.log(`❌ [POLLING DEBUG] User ${user.id} failed to save plays to database:`, dbError instanceof Error ? dbError.message : dbError);
+        throw dbError;
+      }
       
       const duration = Date.now() - startTime;
       if (createdCount > 0) {
+        console.log(`🎉 [POLLING DEBUG] User ${user.id} successfully processed ${createdCount} new plays in ${duration}ms`);
         logger.polling('User plays saved successfully', {
           userId: user.id,
           email: user.email,
@@ -169,6 +219,7 @@ class PollingService {
           duration: `${duration}ms`
         });
       } else {
+        console.log(`⚠️ [POLLING DEBUG] User ${user.id} no new plays (${plays.length} fetched, 0 new) in ${duration}ms`);
         logger.debug(`No new plays for user`, {
           userId: user.id,
           email: user.email,
@@ -178,7 +229,17 @@ class PollingService {
       }
 
       // Update last polled timestamp
-      authService.updateLastPolled(user.id);
+      try {
+        authService.updateLastPolled(user.id);
+        console.log(`✅ [POLLING DEBUG] User ${user.id} last polled timestamp updated`);
+      } catch (e) {
+        try {
+          userService.updateLastPolled(user.id);
+          console.log(`✅ [POLLING DEBUG] User ${user.id} last polled timestamp updated (userService)`);
+        } catch (e2) {
+          console.log(`⚠️ [POLLING DEBUG] User ${user.id} could not update last polled timestamp`);
+        }
+      }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
