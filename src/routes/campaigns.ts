@@ -58,6 +58,65 @@ function initializeCampaignsTable() {
 // Initialize table on startup
 initializeCampaignsTable();
 
+// Helper function to get unique songs for a campaign
+async function getUniqueSongs(campaignId: string, database: any): Promise<number> {
+  if (!database) return 0;
+  
+  try {
+    const query = database.prepare(`
+      SELECT COUNT(DISTINCT p.spotify_track_id) as count
+      FROM attributions a
+      JOIN plays p ON a.play_id = p.id
+      WHERE a.campaign_id = ? AND a.expires_at > datetime('now')
+    `);
+    
+    const result = query.get(campaignId) as { count: number } | undefined;
+    return result ? result.count : 0;
+  } catch (error) {
+    console.error(`Failed to get unique songs for campaign ${campaignId}:`, error);
+    return 0;
+  }
+}
+
+// Helper function to get followers gained for a campaign
+async function getFollowersGained(campaignId: string, database: any): Promise<number> {
+  if (!database) return 0;
+  
+  try {
+    // Get campaign details to find the Spotify artist/playlist
+    const getCampaign = database.prepare('SELECT spotify_artist_id, spotify_playlist_id FROM campaigns WHERE id = ?');
+    const campaign = getCampaign.get(campaignId) as { spotify_artist_id?: string; spotify_playlist_id?: string } | undefined;
+    
+    if (!campaign || (!campaign.spotify_artist_id && !campaign.spotify_playlist_id)) {
+      return 0;
+    }
+    
+    // Calculate followers gained since campaign started
+    const spotifyId = campaign.spotify_artist_id || campaign.spotify_playlist_id;
+    const spotifyType = campaign.spotify_artist_id ? 'artist' : 'playlist';
+    
+    const query = database.prepare(`
+      SELECT 
+        MAX(follower_count) - MIN(follower_count) as gained
+      FROM followers_snapshots 
+      WHERE spotify_id = ? 
+      AND spotify_type = ? 
+      AND snapshot_date >= (
+        SELECT DATE(created_at) 
+        FROM campaigns 
+        WHERE id = ?
+      )
+      AND expires_at > datetime('now')
+    `);
+    
+    const result = query.get(spotifyId, spotifyType, campaignId) as { gained: number } | undefined;
+    return result && result.gained > 0 ? result.gained : 0;
+  } catch (error) {
+    console.error(`Failed to get followers gained for campaign ${campaignId}:`, error);
+    return 0;
+  }
+}
+
 // Simple test route
 router.get('/test', (req, res) => {
   console.log('🧪 GET /api/campaigns/test');
@@ -206,9 +265,16 @@ router.get('/', async (req, res) => {
     campaigns = campaignStorage;
   }
   
-  // Add smart link URLs and click counts
-  const campaignsWithUrls = campaigns.map((campaign: any) => {
+  // Add smart link URLs and comprehensive analytics
+  const campaignsWithUrls = await Promise.all(campaigns.map(async (campaign: any) => {
     let clickCount = 0;
+    let analytics = {
+      streams: 0,
+      unique_listeners: 0,
+      unique_songs: 0,
+      streams_per_listener: 0.0,
+      followers_gained: 0
+    };
     
     // Get click count from database if available
     try {
@@ -240,12 +306,35 @@ router.get('/', async (req, res) => {
       console.error(`Failed to get click count for campaign ${campaign.id}:`, error);
     }
     
+    // Get comprehensive analytics from attribution service
+    try {
+      const { default: attributionService } = await import('../services/attribution');
+      const campaignStats = attributionService.getCampaignStats(campaign.id);
+      
+      analytics = {
+        streams: campaignStats.total_attributions,
+        unique_listeners: campaignStats.unique_listeners,
+        unique_songs: await getUniqueSongs(campaign.id, database),
+        streams_per_listener: campaignStats.streams_per_listener,
+        followers_gained: await getFollowersGained(campaign.id, database)
+      };
+      
+      console.log(`🎵 Campaign ${campaign.id} analytics:`, analytics);
+    } catch (error) {
+      console.error(`Failed to get analytics for campaign ${campaign.id}:`, error);
+    }
+    
     return {
       ...campaign,
       smart_link_url: `${req.protocol}://${req.get('host')}/c/${campaign.id}`,
-      clicks: clickCount
+      clicks: clickCount,
+      streams: analytics.streams,
+      unique_listeners: analytics.unique_listeners,
+      unique_songs: analytics.unique_songs,
+      streams_per_listener: analytics.streams_per_listener,
+      followers_gained: analytics.followers_gained
     };
-  });
+  }));
   
   console.log(`✅ Returning ${campaignsWithUrls.length} campaigns total`);
   res.json(campaignsWithUrls);

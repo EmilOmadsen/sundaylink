@@ -710,8 +710,23 @@ router.get('/spotify/callback', async (req, res) => {
       return res.status(400).send('Missing authorization code or state');
     }
 
-    const userId = parseInt(state as string);
-    console.log('👤 Connecting Spotify for user ID:', userId);
+    // Parse state parameter - could be either userId or campaign info
+    let userId: number | undefined;
+    let campaignInfo: any = null;
+    
+    try {
+      // Try to decode base64 campaign state first
+      const decodedState = Buffer.from(state as string, 'base64').toString('utf-8');
+      campaignInfo = JSON.parse(decodedState);
+      console.log('🎯 Campaign state decoded:', campaignInfo);
+      
+      // For campaign flows, we need to create a new user or find existing one
+      // We'll use the Spotify profile email for this
+    } catch (decodeError) {
+      // Fallback: treat as userId (legacy behavior)
+      userId = parseInt(state as string);
+      console.log('👤 Legacy state - connecting Spotify for user ID:', userId);
+    }
     
     // Exchange code for tokens
     console.log('🔄 Exchanging code for tokens...');
@@ -728,35 +743,103 @@ router.get('/spotify/callback', async (req, res) => {
     const encryptedRefreshToken = spotifyService.encryptAndStoreRefreshToken(tokens.refresh_token);
     console.log('✅ Refresh token encrypted');
     
-    // Update user with Spotify connection
-    console.log('💾 Updating user with Spotify connection...');
-    const updatedUser = await authService.connectSpotify({
-      user_id: userId,
-      spotify_id: spotifyUser.id,
-      access_token: tokens.access_token,
-      encrypted_refresh_token: encryptedRefreshToken,
-      token_expires_at: new Date(Date.now() + tokens.expires_in * 1000)
-    });
-    console.log('✅ User updated with Spotify connection:', { user_id: updatedUser.id, email: updatedUser.email });
-
-    // Create sessions for any recent clicks (within last 48 hours)
-    console.log('🔗 Creating sessions for recent clicks...');
-    const clickId = req.cookies.click_id;
-    if (clickId) {
-      try {
-        const session = sessionService.create({
-          click_id: clickId,
-          user_id: userId
+    // Handle campaign flow vs legacy flow
+    let finalUserId: number;
+    let updatedUser: any;
+    
+    if (campaignInfo) {
+      // Campaign flow - create or find user by Spotify email
+      console.log('🎯 Processing campaign flow...');
+      
+      let user = authService.getByEmail(spotifyUser.email);
+      if (!user) {
+        console.log('👤 Creating new user for campaign flow...');
+        user = await authService.register({
+          email: spotifyUser.email || `${spotifyUser.id}@spotify.local`,
+          password: 'spotify-oauth', // OAuth users don't need passwords
+          display_name: spotifyUser.display_name || spotifyUser.id
         });
-        console.log('✅ Session created linking click to user:', { click_id: clickId, user_id: userId });
-      } catch (error) {
-        console.log('⚠️ Could not create session (click may already be linked):', error instanceof Error ? error.message : error);
       }
+      
+      finalUserId = user.id;
+      
+      // Connect Spotify to this user
+      updatedUser = await authService.connectSpotify({
+        user_id: finalUserId,
+        spotify_id: spotifyUser.id,
+        access_token: tokens.access_token,
+        encrypted_refresh_token: encryptedRefreshToken,
+        token_expires_at: new Date(Date.now() + tokens.expires_in * 1000)
+      });
+      
+      // Create session linking this user to the campaign click
+      if (campaignInfo.clickId) {
+        try {
+          const session = sessionService.create({
+            click_id: campaignInfo.clickId,
+            user_id: finalUserId
+          });
+          console.log('✅ Campaign session created:', { click_id: campaignInfo.clickId, user_id: finalUserId, campaign_id: campaignInfo.campaignId });
+        } catch (error) {
+          console.log('⚠️ Could not create campaign session:', error instanceof Error ? error.message : error);
+        }
+      }
+      
+      // Set auth cookie for the user
+      const authToken = authService.generateToken(updatedUser);
+      res.cookie('auth_token', authToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+      
+      // Set Spotify cookies for quick access
+      res.cookie('spotify_user_id', spotifyUser.id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+      
+      console.log(`🎯 Campaign flow complete - redirecting to: ${campaignInfo.destinationUrl}`);
+      return res.redirect(302, campaignInfo.destinationUrl);
+      
+    } else {
+      // Legacy flow - existing user connecting Spotify
+      if (!userId) {
+        console.error('❌ No userId found for legacy flow');
+        return res.status(400).send('Invalid state parameter');
+      }
+      
+      finalUserId = userId;
+      updatedUser = await authService.connectSpotify({
+        user_id: finalUserId,
+        spotify_id: spotifyUser.id,
+        access_token: tokens.access_token,
+        encrypted_refresh_token: encryptedRefreshToken,
+        token_expires_at: new Date(Date.now() + tokens.expires_in * 1000)
+      });
+      
+      // Create sessions for any recent clicks (within last 48 hours)
+      console.log('🔗 Creating sessions for recent clicks...');
+      const clickId = req.cookies.click_id;
+      if (clickId) {
+        try {
+          const session = sessionService.create({
+            click_id: clickId,
+            user_id: finalUserId
+          });
+          console.log('✅ Session created linking click to user:', { click_id: clickId, user_id: finalUserId });
+        } catch (error) {
+          console.log('⚠️ Could not create session (click may already be linked):', error instanceof Error ? error.message : error);
+        }
+      }
+      
+      // Redirect to dashboard with success message
+      console.log('🎯 Redirecting to dashboard with success message');
+      return res.redirect('/dashboard?spotify_connected=true');
     }
-
-    // Redirect to dashboard with success message
-    console.log('🎯 Redirecting to dashboard with success message');
-    res.redirect('/dashboard?spotify_connected=true');
+    
+    console.log('✅ User updated with Spotify connection:', { user_id: updatedUser.id, email: updatedUser.email });
 
   } catch (error) {
     console.error('Spotify callback error:', error);

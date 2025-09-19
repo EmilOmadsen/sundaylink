@@ -353,7 +353,7 @@ async function startServer() {
     app.use('/auth', authRoutes);
     app.use('/dashboard', dashboardRoutes);
     app.use('/create-campaign', createCampaignRoutes);
-    app.use('/api/campaigns', campaignRoutes);
+app.use('/api/campaigns', campaignRoutes);
     // app.use('/', clickRoutes); // Mount click routes at root level for /c/:campaignId - DISABLED FOR NOW
     
     console.log('✅ All routes registered successfully');
@@ -395,7 +395,9 @@ async function startServer() {
         return res.status(410).send('Campaign is not active');
       }
       
-      // Track the click
+      // Track the click - initialize clickId outside try block
+      let clickId = 'unknown';
+      
       try {
         // Import database and click service
         let clickDb;
@@ -447,7 +449,7 @@ async function startServer() {
         const referrer = req.get('Referer') || '';
         
         // Generate click ID and hash IP
-        const clickId = uuidv4();
+        clickId = uuidv4();
         const ipHash = crypto.createHash('sha256').update(clientIP + 'salt').digest('hex');
         
         // Extract UTM parameters
@@ -497,6 +499,34 @@ async function startServer() {
       } catch (clickError) {
         console.error('❌ Failed to track click:', clickError);
         // Continue with redirect even if click tracking fails
+      }
+      
+      // Check if user already has Spotify connected via cookie
+      const hasSpotifyAuth = req.cookies.spotify_access_token || req.cookies.spotify_user_id;
+      
+      if (!hasSpotifyAuth && campaign.spotify_track_id) {
+        // User clicked a Spotify link but isn't authenticated - start OAuth flow
+        console.log(`🎵 Initiating Spotify OAuth flow for campaign ${campaignId}`);
+        
+        try {
+          const spotifyService = (await import('./services/spotify')).default;
+          
+          // Create state parameter with campaign info and destination URL
+          const state = JSON.stringify({
+            campaignId: campaignId,
+            clickId: clickId,
+            destinationUrl: campaign.destination_url,
+            returnTo: 'destination' // After auth, go to destination
+          });
+          
+          const authUrl = spotifyService.getAuthUrl(Buffer.from(state).toString('base64'));
+          console.log(`🔗 Redirecting to Spotify OAuth: ${authUrl}`);
+          
+          return res.redirect(302, authUrl);
+        } catch (spotifyError) {
+          console.error('❌ Failed to initiate Spotify OAuth:', spotifyError);
+          // Fall back to direct redirect
+        }
       }
       
       console.log(`✅ Redirecting to: ${campaign.destination_url}`);
@@ -656,8 +686,8 @@ async function startServer() {
           const pollingService = (await import('./services/polling')).default;
           const cleanupService = (await import('./services/cleanup')).default;
           
-          pollingService.start();
-          cleanupService.start();
+  pollingService.start();
+  cleanupService.start();
           logManager.scheduleLogManagement();
           
           logger.info('All background services started successfully!');

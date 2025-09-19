@@ -500,17 +500,37 @@ router.get('/', (req, res) => {
                     const campaigns = await response.json();
                     console.log('Campaigns data received:', campaigns);
                     
-                    // Calculate statistics from campaigns array
+                    // Calculate comprehensive statistics from campaigns array
                     const totalCampaigns = campaigns.length;
                     const totalClicks = campaigns.reduce((sum, campaign) => sum + (campaign.clicks || 0), 0);
+                    const totalStreams = campaigns.reduce((sum, campaign) => sum + (campaign.streams || 0), 0);
+                    const totalUniqueListeners = campaigns.reduce((sum, campaign) => sum + (campaign.unique_listeners || 0), 0);
+                    const totalUniqueSongs = campaigns.reduce((sum, campaign) => sum + (campaign.unique_songs || 0), 0);
+                    const totalFollowersGained = campaigns.reduce((sum, campaign) => sum + (campaign.followers_gained || 0), 0);
                     const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
                     
-                    // Update stats
+                    // Update stats with real data
                     document.getElementById('total-campaigns').textContent = totalCampaigns;
                     document.getElementById('total-clicks').textContent = totalClicks;
-                    document.getElementById('total-streams').textContent = '0'; // Will be updated when we have plays data
-                    document.getElementById('total-listeners').textContent = '0'; // Will be updated when we have user data
-                    document.getElementById('total-unique-songs').textContent = activeCampaigns;
+                    document.getElementById('total-streams').textContent = totalStreams;
+                    document.getElementById('total-listeners').textContent = totalUniqueListeners;
+                    document.getElementById('total-unique-songs').textContent = totalUniqueSongs;
+                    
+                    // Update additional stats if elements exist
+                    const followersElement = document.getElementById('total-followers-gained');
+                    if (followersElement) followersElement.textContent = totalFollowersGained;
+                    
+                    const activeCampaignsElement = document.getElementById('active-campaigns');
+                    if (activeCampaignsElement) activeCampaignsElement.textContent = activeCampaigns;
+                    
+                    console.log('📊 Dashboard stats updated:', {
+                        campaigns: totalCampaigns,
+                        clicks: totalClicks,
+                        streams: totalStreams,
+                        listeners: totalUniqueListeners,
+                        songs: totalUniqueSongs,
+                        followers: totalFollowersGained
+                    });
 
                     // Update campaigns table
                     campaignsData = campaigns;
@@ -548,11 +568,11 @@ router.get('/', (req, res) => {
                         '<button class="copy-btn" data-link="' + smartLink + '">Copy</button>' +
                         '</td>' +
                         '<td>' + (campaign.clicks || 0) + '</td>' +
-                        '<td>0</td>' +
-                        '<td>0</td>' +
-                        '<td>0</td>' +
-                        '<td>0.0</td>' +
-                        '<td>0</td>' +
+                        '<td>' + (campaign.streams || 0) + '</td>' +
+                        '<td>' + (campaign.unique_songs || 0) + '</td>' +
+                        '<td>' + (campaign.unique_listeners || 0) + '</td>' +
+                        '<td>' + (campaign.streams_per_listener || 0).toFixed(1) + '</td>' +
+                        '<td>' + (campaign.followers_gained || 0) + '</td>' +
                         '<td>' + createdDate + '</td>' +
                         '<td>' +
                         '<button onclick="toggleCampaign(\\'' + campaign.id + '\\')" class="btn btn-small btn-secondary">' + (campaign.status === 'active' ? 'Pause' : 'Resume') + '</button>' +
