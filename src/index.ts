@@ -371,6 +371,172 @@ app.get('/debug-trigger-polling', async (req, res) => {
   }
 });
 
+// Detailed Spotify OAuth flow debugging
+app.get('/debug-spotify-flow/:campaignId', async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const diagnostics = {
+      step: 'starting_debug',
+      timestamp: new Date().toISOString(),
+      campaign_check: null as any,
+      spotify_config: null as any,
+      auth_url: null as any,
+      database_users: null as any,
+      recent_clicks: null as any,
+      error: null as any
+    };
+
+    // Step 1: Check campaign exists
+    try {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const campaignResponse = await fetch(`${baseUrl}/api/campaigns`);
+      const campaigns = await campaignResponse.json();
+      const campaign = campaigns.find((c: any) => c.id === campaignId);
+      
+      diagnostics.campaign_check = {
+        found: !!campaign,
+        campaign_id: campaignId,
+        total_campaigns: campaigns.length,
+        campaign_details: campaign ? {
+          name: campaign.name,
+          spotify_track_id: campaign.spotify_track_id,
+          status: campaign.status,
+          clicks: campaign.clicks
+        } : null
+      };
+    } catch (error) {
+      diagnostics.campaign_check = { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+
+    // Step 2: Check Spotify configuration
+    try {
+      const { default: spotifyService } = await import('./services/spotify');
+      diagnostics.spotify_config = {
+        client_id: process.env.SPOTIFY_CLIENT_ID ? `${process.env.SPOTIFY_CLIENT_ID.substring(0, 8)}...` : 'NOT_SET',
+        client_secret: process.env.SPOTIFY_CLIENT_SECRET ? 'SET' : 'NOT_SET',
+        redirect_uri: process.env.SPOTIFY_REDIRECT_URI || 'NOT_SET',
+        computed_redirect_uri: `${req.protocol}://${req.get('host')}/auth/spotify/callback`
+      };
+
+      // Test auth URL generation
+      const testState = JSON.stringify({
+        campaignId: campaignId,
+        clickId: 'test-click-id',
+        destinationUrl: 'https://open.spotify.com/track/test',
+        returnTo: 'destination'
+      });
+      
+      diagnostics.auth_url = spotifyService.getAuthUrl(Buffer.from(testState).toString('base64'));
+    } catch (error) {
+      diagnostics.spotify_config = { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+
+    // Step 3: Check database users
+    try {
+      const { default: database } = await import('./services/database');
+      const users = database.prepare('SELECT id, spotify_user_id, email, is_spotify_connected, created_at FROM users ORDER BY created_at DESC LIMIT 10').all();
+      const clicks = database.prepare('SELECT id, campaign_id, clicked_at FROM clicks WHERE campaign_id = ? ORDER BY clicked_at DESC LIMIT 5').all(campaignId);
+      
+      diagnostics.database_users = {
+        total_users: users.length,
+        recent_users: users,
+        campaign_clicks: clicks.length,
+        recent_clicks: clicks
+      };
+    } catch (error) {
+      diagnostics.database_users = { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+
+    res.json(diagnostics);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Debug failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Test Spotify OAuth callback manually
+app.get('/debug-test-oauth', async (req, res) => {
+  try {
+    const testHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Test Spotify OAuth</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+          .success { border-color: #4CAF50; background: #f9fff9; }
+          .error { border-color: #f44336; background: #fff9f9; }
+        </style>
+      </head>
+      <body>
+        <h1>🎵 Spotify OAuth Test</h1>
+        
+        <div class="step">
+          <h3>Step 1: Check Spotify Configuration</h3>
+          <p><strong>Client ID:</strong> ${process.env.SPOTIFY_CLIENT_ID ? process.env.SPOTIFY_CLIENT_ID.substring(0, 8) + '...' : '❌ NOT SET'}</p>
+          <p><strong>Client Secret:</strong> ${process.env.SPOTIFY_CLIENT_SECRET ? '✅ SET' : '❌ NOT SET'}</p>
+          <p><strong>Redirect URI:</strong> ${process.env.SPOTIFY_REDIRECT_URI || '❌ NOT SET'}</p>
+          <p><strong>Expected URI:</strong> ${req.protocol}://${req.get('host')}/auth/spotify/callback</p>
+        </div>
+        
+        <div class="step">
+          <h3>Step 2: Test OAuth Flow</h3>
+          <p>Click the button below to test the Spotify OAuth flow:</p>
+          <button onclick="testSpotifyAuth()" style="padding: 10px 20px; font-size: 16px;">Test Spotify Login</button>
+        </div>
+        
+        <div class="step">
+          <h3>Step 3: Debug Information</h3>
+          <p><a href="/debug-analytics">View System Diagnostics</a></p>
+          <p><a href="/debug-trigger-polling">Trigger Manual Polling</a></p>
+        </div>
+
+        <script>
+          function testSpotifyAuth() {
+            const testState = JSON.stringify({
+              campaignId: 'test-campaign',
+              clickId: 'test-click-' + Date.now(),
+              destinationUrl: 'https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh',
+              returnTo: 'destination'
+            });
+            
+            const encodedState = btoa(testState);
+            const clientId = '${process.env.SPOTIFY_CLIENT_ID || 'NOT_SET'}';
+            const redirectUri = encodeURIComponent('${req.protocol}://${req.get('host')}/auth/spotify/callback');
+            
+            if (clientId === 'NOT_SET') {
+              alert('❌ Spotify Client ID not configured! Set SPOTIFY_CLIENT_ID in Railway environment variables.');
+              return;
+            }
+            
+            const authUrl = 'https://accounts.spotify.com/authorize?' +
+              'response_type=code' +
+              '&client_id=' + clientId +
+              '&scope=user-read-recently-played user-read-email' +
+              '&redirect_uri=' + redirectUri +
+              '&state=' + encodedState +
+              '&show_dialog=true';
+            
+            console.log('🔗 Redirecting to:', authUrl);
+            window.location.href = authUrl;
+          }
+        </script>
+      </body>
+      </html>
+    `;
+    
+    res.send(testHtml);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to generate test page',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Test endpoint to create a sample campaign with Spotify track
 app.post('/debug-create-test-campaign', async (req, res) => {
   try {
