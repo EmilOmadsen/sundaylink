@@ -264,7 +264,8 @@ app.get('/debug-analytics', async (req, res) => {
         clicks_count: 0,
         users_count: 0,
         plays_count: 0,
-        attributions_count: 0
+        attributions_count: 0,
+        sessions_count: 0
       }
     };
 
@@ -303,6 +304,13 @@ app.get('/debug-analytics', async (req, res) => {
         diagnostics.database_stats.attributions_count = attributionsCount.count;
       } catch (e) {
         diagnostics.database_stats.attributions_count = -1; // Table doesn't exist
+      }
+      
+      try {
+        const sessionsCount = database.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number };
+        diagnostics.database_stats.sessions_count = sessionsCount.count;
+      } catch (e) {
+        diagnostics.database_stats.sessions_count = -1; // Table doesn't exist
       }
       
     } catch (error) {
@@ -1244,7 +1252,7 @@ app.use('/api/campaigns', campaignRoutes);
           try {
             const pollingService = (await import('./services/polling')).default;
             console.log('✅ Polling service imported successfully');
-            pollingService.start();
+  pollingService.start();
             console.log('✅ Polling service started');
           } catch (pollingError) {
             console.error('❌ Failed to start polling service:', pollingError);
@@ -1252,7 +1260,7 @@ app.use('/api/campaigns', campaignRoutes);
           
           try {
             const cleanupService = (await import('./services/cleanup')).default;
-            cleanupService.start();
+  cleanupService.start();
             console.log('✅ Cleanup service started');
           } catch (cleanupError) {
             console.error('❌ Failed to start cleanup service:', cleanupError);
