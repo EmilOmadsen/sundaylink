@@ -1413,36 +1413,31 @@ app.use('/create-campaign', createCampaignRoutes);
         // Continue with redirect even if click tracking fails
       }
       
-      // Check if user already has Spotify connected via cookie
-      const hasSpotifyAuth = req.cookies.spotify_access_token || req.cookies.spotify_user_id;
+      // ALWAYS redirect to Spotify OAuth for authorization and analytics
+      // This ensures every click is tracked with user consent
+      console.log(`🎵 Initiating Spotify OAuth flow for campaign ${campaignId} (mandatory authorization)`);
       
-      if (!hasSpotifyAuth && campaign.spotify_track_id) {
-        // User clicked a Spotify link but isn't authenticated - start OAuth flow
-        console.log(`🎵 Initiating Spotify OAuth flow for campaign ${campaignId}`);
+      try {
+        const spotifyService = (await import('./services/spotify')).default;
         
-        try {
-          const spotifyService = (await import('./services/spotify')).default;
-          
-          // Create state parameter with campaign info and destination URL
-          const state = JSON.stringify({
-            campaignId: campaignId,
-            clickId: clickId,
-            destinationUrl: campaign.destination_url,
-            returnTo: 'destination' // After auth, go to destination
-          });
-          
-          const authUrl = spotifyService.getAuthUrl(Buffer.from(state).toString('base64'));
-          console.log(`🔗 Redirecting to Spotify OAuth: ${authUrl}`);
-          
-          return res.redirect(302, authUrl);
-        } catch (spotifyError) {
-          console.error('❌ Failed to initiate Spotify OAuth:', spotifyError);
-          // Fall back to direct redirect
-        }
+        // Create state parameter with campaign info and destination URL
+        const state = JSON.stringify({
+          campaignId: campaignId,
+          clickId: clickId,
+          destinationUrl: campaign.destination_url,
+          returnTo: 'destination' // After auth, go to destination
+        });
+        
+        const authUrl = spotifyService.getAuthUrl(Buffer.from(state).toString('base64'));
+        console.log(`🔗 Redirecting to Spotify OAuth: ${authUrl}`);
+        
+        return res.redirect(302, authUrl);
+      } catch (spotifyError) {
+        console.error('❌ Failed to initiate Spotify OAuth:', spotifyError);
+        // Fall back to direct redirect if OAuth fails
+        console.log(`⚠️ OAuth failed, redirecting directly to: ${campaign.destination_url}`);
+        res.redirect(302, campaign.destination_url);
       }
-      
-      console.log(`✅ Redirecting to: ${campaign.destination_url}`);
-      res.redirect(302, campaign.destination_url);
       
     } catch (error) {
       console.error('❌ Error in tracker link handler:', error);
