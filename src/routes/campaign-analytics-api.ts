@@ -11,7 +11,7 @@ router.get('/:campaignId/overview', async (req, res) => {
     // Get basic campaign stats
     const campaign = database.prepare(`
       SELECT name FROM campaigns WHERE id = ? AND expires_at > datetime('now')
-    `).get(campaignId);
+    `).get(campaignId) as { name: string } | undefined;
     
     if (!campaign) {
       return res.status(404).json({ error: 'Campaign not found' });
