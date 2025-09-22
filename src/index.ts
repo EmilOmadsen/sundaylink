@@ -1934,6 +1934,27 @@ app.get('/debug-oauth-flow', async (req, res) => {
   }
 });
 
+// Debug endpoint to clear playlist cache
+app.get('/debug-clear-playlist-cache/:playlistId?', async (req, res) => {
+  try {
+    const { playlistId } = req.params;
+    const { default: playlistCache } = await import('./services/playlist-cache');
+    
+    await playlistCache.clearCache(playlistId);
+    
+    res.json({
+      message: playlistId ? `Cleared cache for playlist ${playlistId}` : 'Cleared all playlist cache',
+      playlistId: playlistId || 'all'
+    });
+  } catch (error) {
+    console.error('Error clearing playlist cache:', error);
+    res.status(500).json({ 
+      error: 'Failed to clear playlist cache', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
 // Debug endpoint to show detailed play data for campaigns
 app.get('/debug-play-data/:campaignId', async (req, res) => {
   try {

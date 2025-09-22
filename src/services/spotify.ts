@@ -336,6 +336,51 @@ Please try the OAuth flow again from the beginning.`);
       throw new Error('Failed to get client credentials access token');
     }
   }
+
+  async getPlaylistTracks(playlistId: string, accessToken: string): Promise<string[]> {
+    try {
+      console.log(`🎵 Fetching tracks for playlist: ${playlistId}`);
+      
+      const tracks: string[] = [];
+      let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50`;
+      
+      while (url) {
+        const response = await axios.get(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        // Extract track IDs from the response
+        const playlistTracks = response.data.items
+          .filter((item: any) => item.track && item.track.id)
+          .map((item: any) => item.track.id);
+        
+        tracks.push(...playlistTracks);
+        
+        // Check if there are more pages
+        url = response.data.next;
+        
+        if (tracks.length > 1000) {
+          console.log('⚠️ Playlist has more than 1000 tracks, limiting to first 1000');
+          break;
+        }
+      }
+      
+      console.log(`✅ Found ${tracks.length} tracks in playlist ${playlistId}`);
+      return tracks;
+    } catch (error) {
+      console.error(`❌ Error fetching playlist tracks for ${playlistId}:`, error);
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          throw new Error(`Playlist ${playlistId} not found or not accessible`);
+        } else if (error.response?.status === 401) {
+          throw new Error('Invalid access token for playlist access');
+        }
+      }
+      throw new Error(`Failed to fetch playlist tracks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }
 
 export default new SpotifyService();

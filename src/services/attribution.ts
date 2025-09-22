@@ -86,19 +86,72 @@ class AttributionService {
     }
   }
 
-  private isPlayFromCampaignPlaylist(play: any, campaignId: string): boolean {
+  private async isPlayFromCampaignPlaylist(play: any, campaignId: string): Promise<boolean> {
     try {
       // Get the campaign to check its playlist
       const campaign = campaignService.getById(campaignId);
       if (!campaign || !campaign.spotify_playlist_id) {
+        console.log(`❌ Campaign ${campaignId} has no playlist ID`);
         return false; // No playlist to check against
       }
 
-      // For now, we'll use a simple approach: check if the play has a Spotify track ID
-      // In a more sophisticated implementation, you would check if the track is actually
-      // in the playlist by calling the Spotify API
-      // For this implementation, we'll assume all plays with Spotify track IDs are valid
-      return !!play.spotify_track_id;
+      if (!play.spotify_track_id) {
+        console.log(`❌ Play ${play.id} has no Spotify track ID`);
+        return false;
+      }
+
+      // Import services
+      const { default: playlistCache } = await import('./playlist-cache');
+      const { default: spotifyService } = await import('./spotify');
+
+      // Try to get cached playlist tracks first
+      let playlistTracks = await playlistCache.getPlaylistTracks(campaign.spotify_playlist_id);
+      
+      if (!playlistTracks) {
+        console.log(`🔄 Cache miss for playlist ${campaign.spotify_playlist_id}, fetching from Spotify...`);
+        
+        // We need an access token to fetch playlist tracks
+        // For now, we'll use a fallback approach - get any user's token
+        const { default: userService } = await import('./users');
+        const users = userService.getAllForPolling();
+        
+        if (users.length === 0) {
+          console.log(`❌ No users available to fetch playlist tracks`);
+          return false;
+        }
+
+        // Use the first available user's token
+        const user = users[0];
+        if (!user.refresh_token_encrypted) {
+          console.log(`❌ User ${user.id} has no refresh token`);
+          return false;
+        }
+
+        try {
+          // Get fresh access token
+          const { default: encryption } = await import('../utils/encryption');
+          const refreshToken = encryption.decrypt(user.refresh_token_encrypted);
+          const tokens = await spotifyService.refreshAccessToken(refreshToken);
+          
+          // Fetch playlist tracks
+          playlistTracks = await spotifyService.getPlaylistTracks(campaign.spotify_playlist_id, tokens.access_token);
+          
+          // Cache the tracks
+          await playlistCache.cachePlaylistTracks(campaign.spotify_playlist_id, playlistTracks);
+          
+        } catch (tokenError) {
+          console.error(`❌ Failed to get access token for playlist fetch:`, tokenError);
+          return false;
+        }
+      }
+
+      // Check if the played track is in the campaign's playlist
+      const isInPlaylist = playlistTracks.includes(play.spotify_track_id);
+      
+      console.log(`${isInPlaylist ? '✅' : '❌'} Track ${play.spotify_track_id} ${isInPlaylist ? 'IS' : 'IS NOT'} in playlist ${campaign.spotify_playlist_id}`);
+      
+      return isInPlaylist;
+      
     } catch (error) {
       console.error('Error checking if play is from campaign playlist:', error);
       return false;
@@ -182,7 +235,8 @@ class AttributionService {
           }
 
           // Check if this play is from the campaign's playlist
-          if (!this.isPlayFromCampaignPlaylist(play, click.campaign_id)) {
+          const isFromPlaylist = await this.isPlayFromCampaignPlaylist(play, click.campaign_id);
+          if (!isFromPlaylist) {
             continue; // Skip plays that are not from the campaign's playlist
           }
 
