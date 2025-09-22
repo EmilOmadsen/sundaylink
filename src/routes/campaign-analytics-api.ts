@@ -2,6 +2,63 @@ import express from 'express';
 
 const router = express.Router();
 
+// Get overview data for a campaign
+router.get('/:campaignId/overview', async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { default: database } = await import('../services/database');
+    
+    // Get basic campaign stats
+    const campaign = database.prepare(`
+      SELECT name FROM campaigns WHERE id = ? AND expires_at > datetime('now')
+    `).get(campaignId);
+    
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    // Get total clicks
+    const clicks = database.prepare(`
+      SELECT COUNT(*) as count FROM clicks WHERE campaign_id = ? AND expires_at > datetime('now')
+    `).get(campaignId) as { count: number };
+    
+    // Get total streams (attributions)
+    const streams = database.prepare(`
+      SELECT COUNT(DISTINCT a.play_id) as count FROM attributions a 
+      WHERE a.campaign_id = ? AND a.expires_at > datetime('now')
+    `).get(campaignId) as { count: number };
+    
+    // Get unique listeners
+    const listeners = database.prepare(`
+      SELECT COUNT(DISTINCT s.user_id) as count FROM attributions a
+      JOIN sessions s ON a.click_id = s.click_id
+      WHERE a.campaign_id = ? AND a.expires_at > datetime('now')
+    `).get(campaignId) as { count: number };
+    
+    // Get unique songs
+    const songs = database.prepare(`
+      SELECT COUNT(DISTINCT p.spotify_track_id) as count FROM attributions a
+      JOIN plays p ON a.play_id = p.id
+      WHERE a.campaign_id = ? AND a.expires_at > datetime('now')
+    `).get(campaignId) as { count: number };
+    
+    const overview = {
+      campaign_name: campaign.name,
+      total_clicks: clicks.count,
+      total_streams: streams.count,
+      unique_listeners: listeners.count,
+      unique_songs: songs.count,
+      streams_per_listener: listeners.count > 0 ? (streams.count / listeners.count).toFixed(1) : '0.0',
+      followers_gained: 0 // TODO: Implement follower tracking
+    };
+    
+    res.json(overview);
+  } catch (error) {
+    console.error('Error getting overview data:', error);
+    res.status(500).json({ error: 'Failed to get overview data' });
+  }
+});
+
 // Get trends data for a campaign
 router.get('/:campaignId/trends', async (req, res) => {
   try {
@@ -67,21 +124,18 @@ router.get('/:campaignId/countries', async (req, res) => {
       JOIN sessions s ON a.click_id = s.click_id
       WHERE a.campaign_id = ? 
       AND a.expires_at > datetime('now')
-      GROUP BY s.user_id
-    `).all(campaignId);
+    `).get(campaignId) as { country: string, listeners: number, streams: number };
     
     // Calculate S/L ratio and format data
-    const countryData = countries.map((country: any) => ({
-      name: country.country,
+    const countryData = [{
+      name: countries.country,
       flag: '🌍', // Default flag
-      listeners: country.listeners,
-      streams: country.streams,
-      spl: country.listeners > 0 ? country.streams / country.listeners : 0
-    }));
+      listeners: countries.listeners,
+      streams: countries.streams,
+      spl: countries.listeners > 0 ? countries.streams / countries.listeners : 0
+    }];
     
-    res.json({
-      countries: countryData
-    });
+    res.json(countryData);
   } catch (error) {
     console.error('Error getting countries data:', error);
     res.status(500).json({ error: 'Failed to get countries data' });

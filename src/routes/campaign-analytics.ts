@@ -335,7 +335,9 @@ router.get('/:campaignId', async (req, res) => {
                   event.target.classList.add('active');
                   
                   // Load tab-specific data
-                  if (tabName === 'trends') {
+                  if (tabName === 'overview') {
+                      loadOverviewData();
+                  } else if (tabName === 'trends') {
                       loadTrendsData();
                   } else if (tabName === 'countries') {
                       loadCountriesData();
@@ -344,9 +346,26 @@ router.get('/:campaignId', async (req, res) => {
                   }
               }
               
+              async function loadOverviewData() {
+                  try {
+                      const response = await fetch(\`\${API_BASE}/api/campaign-analytics/\${campaignId}/overview\`);
+                      const data = await response.json();
+                      
+                      // Update overview metrics
+                      document.getElementById('totalClicks').textContent = data.total_clicks;
+                      document.getElementById('totalStreams').textContent = data.total_streams;
+                      document.getElementById('uniqueListeners').textContent = data.unique_listeners;
+                      document.getElementById('uniqueSongs').textContent = data.unique_songs;
+                      document.getElementById('streamsPerListener').textContent = data.streams_per_listener;
+                      document.getElementById('followersGained').textContent = data.followers_gained;
+                  } catch (error) {
+                      console.error('Error loading overview data:', error);
+                  }
+              }
+              
               async function loadTrendsData() {
                   try {
-                      const response = await fetch(\`\${API_BASE}/api/campaigns/\${campaignId}/trends\`);
+                      const response = await fetch(\`\${API_BASE}/api/campaign-analytics/\${campaignId}/trends\`);
                       const data = await response.json();
                       
                       // Create streams chart
@@ -415,7 +434,7 @@ router.get('/:campaignId', async (req, res) => {
               
               async function loadCountriesData() {
                   try {
-                      const response = await fetch(\`\${API_BASE}/api/campaigns/\${campaignId}/countries\`);
+                      const response = await fetch(\`\${API_BASE}/api/campaign-analytics/\${campaignId}/countries\`);
                       const data = await response.json();
                       
                       const tbody = document.getElementById('countriesTableBody');
@@ -443,7 +462,7 @@ router.get('/:campaignId', async (req, res) => {
               
               async function loadGrowthData() {
                   try {
-                      const response = await fetch(\`\${API_BASE}/api/campaigns/\${campaignId}/growth\`);
+                      const response = await fetch(\`\${API_BASE}/api/campaign-analytics/\${campaignId}/growth\`);
                       const data = await response.json();
                       
                       const growthCtx = document.getElementById('growthChart').getContext('2d');
@@ -481,6 +500,11 @@ router.get('/:campaignId', async (req, res) => {
                       console.error('Error loading growth data:', error);
                   }
               }
+              
+              // Load overview data when page loads
+              document.addEventListener('DOMContentLoaded', function() {
+                  loadOverviewData();
+              });
           </script>
       </body>
       </html>
