@@ -1935,7 +1935,7 @@ app.get('/debug-oauth-flow', async (req, res) => {
 });
 
 // Debug endpoint to clear playlist cache
-app.get('/debug-clear-playlist-cache/:playlistId?', async (req, res) => {
+app.get('/debug-clear-playlist-cache/:playlistId', async (req, res) => {
   try {
     const { playlistId } = req.params;
     const { default: playlistCache } = await import('./services/playlist-cache');
@@ -1943,8 +1943,28 @@ app.get('/debug-clear-playlist-cache/:playlistId?', async (req, res) => {
     await playlistCache.clearCache(playlistId);
     
     res.json({
-      message: playlistId ? `Cleared cache for playlist ${playlistId}` : 'Cleared all playlist cache',
-      playlistId: playlistId || 'all'
+      message: `Cleared cache for playlist ${playlistId}`,
+      playlistId: playlistId
+    });
+  } catch (error) {
+    console.error('Error clearing playlist cache:', error);
+    res.status(500).json({ 
+      error: 'Failed to clear playlist cache', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+// Debug endpoint to clear all playlist cache
+app.get('/debug-clear-playlist-cache', async (req, res) => {
+  try {
+    const { default: playlistCache } = await import('./services/playlist-cache');
+    
+    await playlistCache.clearCache();
+    
+    res.json({
+      message: 'Cleared all playlist cache',
+      playlistId: 'all'
     });
   } catch (error) {
     console.error('Error clearing playlist cache:', error);
