@@ -340,4 +340,151 @@ router.get('/', async (req, res) => {
   res.json(campaignsWithUrls);
 });
 
+// Update campaign status
+router.patch('/:id/status', async (req, res) => {
+  const campaignId = req.params.id;
+  const { status } = req.body;
+  console.log(`🔄 PATCH /api/campaigns/${campaignId}/status - Updating status to ${status}`);
+  
+  if (!status || !['active', 'paused'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be "active" or "paused"' });
+  }
+  
+  try {
+    const database = await getDatabase();
+    let updated = false;
+    
+    // Try to update in database first
+    if (database) {
+      try {
+        console.log('💾 Attempting to update campaign status in database...');
+        
+        // Ensure campaigns table exists
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS campaigns (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            destination_url TEXT NOT NULL,
+            spotify_track_id TEXT,
+            spotify_artist_id TEXT,
+            spotify_playlist_id TEXT,
+            status TEXT DEFAULT 'active',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+          )
+        `);
+        
+        const updateCampaign = database.prepare('UPDATE campaigns SET status = ?, updated_at = datetime("now") WHERE id = ?');
+        const result = updateCampaign.run(status, campaignId);
+        
+        if (result.changes > 0) {
+          console.log(`✅ Campaign ${campaignId} status updated to ${status} in database`);
+          updated = true;
+        } else {
+          console.log(`⚠️ Campaign ${campaignId} not found in database`);
+        }
+        
+      } catch (dbError) {
+        console.error('❌ Failed to update campaign status in database:', dbError);
+      }
+    }
+    
+    // Also update in-memory storage if it exists there
+    const campaignIndex = campaignStorage.findIndex(c => c.id === campaignId);
+    if (campaignIndex !== -1) {
+      campaignStorage[campaignIndex].status = status;
+      console.log(`✅ Campaign ${campaignId} status updated to ${status} in memory storage`);
+      updated = true;
+    }
+    
+    if (!updated) {
+      console.log(`❌ Campaign ${campaignId} not found in any storage`);
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    console.log(`✅ Campaign ${campaignId} status updated successfully`);
+    res.json({ message: 'Campaign status updated successfully', campaignId, status });
+    
+  } catch (error) {
+    console.error('❌ Error updating campaign status:', error);
+    res.status(500).json({ 
+      error: 'Failed to update campaign status',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Delete campaign
+router.delete('/:id', async (req, res) => {
+  const campaignId = req.params.id;
+  console.log(`🗑️ DELETE /api/campaigns/${campaignId} - Deleting campaign`);
+  
+  try {
+    const database = await getDatabase();
+    let deleted = false;
+    
+    // Try to delete from database first
+    if (database) {
+      try {
+        console.log('💾 Attempting to delete campaign from database...');
+        
+        // Ensure campaigns table exists
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS campaigns (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            destination_url TEXT NOT NULL,
+            spotify_track_id TEXT,
+            spotify_artist_id TEXT,
+            spotify_playlist_id TEXT,
+            status TEXT DEFAULT 'active',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME DEFAULT (datetime('now', '+40 days'))
+          )
+        `);
+        
+        const deleteCampaign = database.prepare('DELETE FROM campaigns WHERE id = ?');
+        const result = deleteCampaign.run(campaignId);
+        
+        if (result.changes > 0) {
+          console.log(`✅ Campaign ${campaignId} deleted from database`);
+          deleted = true;
+        } else {
+          console.log(`⚠️ Campaign ${campaignId} not found in database`);
+        }
+        
+      } catch (dbError) {
+        console.error('❌ Failed to delete campaign from database:', dbError);
+      }
+    }
+    
+    // Also remove from in-memory storage if it exists there
+    const initialLength = campaignStorage.length;
+    campaignStorage = campaignStorage.filter(c => c.id !== campaignId);
+    const memoryDeleted = campaignStorage.length < initialLength;
+    
+    if (memoryDeleted) {
+      console.log(`✅ Campaign ${campaignId} deleted from memory storage`);
+      deleted = true;
+    }
+    
+    if (!deleted) {
+      console.log(`❌ Campaign ${campaignId} not found in any storage`);
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    console.log(`✅ Campaign ${campaignId} deleted successfully`);
+    res.json({ message: 'Campaign deleted successfully', campaignId });
+    
+  } catch (error) {
+    console.error('❌ Error deleting campaign:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete campaign',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
