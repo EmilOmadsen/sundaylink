@@ -21,7 +21,7 @@ router.get('/:campaignId/trends', async (req, res) => {
       AND a.expires_at > datetime('now')
       GROUP BY DATE(a.created_at)
       ORDER BY date ASC
-    `).all(campaignId);
+    `).all(campaignId) as Array<{date: string, streams: number, listeners: number}>;
     
     // Generate date range
     const dates = [];
@@ -107,7 +107,7 @@ router.get('/:campaignId/growth', async (req, res) => {
       AND a.expires_at > datetime('now')
       GROUP BY strftime('%Y-%W', a.created_at)
       ORDER BY week ASC
-    `).all(campaignId);
+    `).all(campaignId) as Array<{week: string, streams: number, listeners: number}>;
     
     // Generate week labels
     const labels = [];
