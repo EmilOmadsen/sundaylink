@@ -1934,6 +1934,69 @@ app.get('/debug-oauth-flow', async (req, res) => {
   }
 });
 
+// Debug endpoint to show detailed play data for campaigns
+app.get('/debug-play-data/:campaignId', async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { default: database } = await import('./services/database');
+    
+    // Get detailed play data for this campaign
+    const plays = database.prepare(`
+      SELECT 
+        a.id as attribution_id,
+        a.created_at as attribution_date,
+        p.spotify_track_id,
+        p.track_name,
+        p.artist_name,
+        p.album_name,
+        p.duration_ms,
+        u.display_name as user_name,
+        u.email as user_email,
+        s.created_at as session_date
+      FROM attributions a
+      JOIN plays p ON a.play_id = p.id
+      JOIN sessions s ON a.click_id = s.click_id
+      JOIN users u ON s.user_id = u.id
+      WHERE a.campaign_id = ? 
+      AND a.expires_at > datetime('now')
+      ORDER BY a.created_at DESC
+    `).all(campaignId);
+    
+    // Get campaign info
+    const campaign = database.prepare(`
+      SELECT name, destination_url, created_at 
+      FROM campaigns 
+      WHERE id = ? AND expires_at > datetime('now')
+    `).get(campaignId);
+    
+    // Get summary stats
+    const summary = database.prepare(`
+      SELECT 
+        COUNT(DISTINCT a.id) as total_streams,
+        COUNT(DISTINCT p.spotify_track_id) as unique_songs,
+        COUNT(DISTINCT s.user_id) as unique_listeners
+      FROM attributions a
+      JOIN plays p ON a.play_id = p.id
+      JOIN sessions s ON a.click_id = s.click_id
+      WHERE a.campaign_id = ? AND a.expires_at > datetime('now')
+    `).get(campaignId);
+    
+    res.json({
+      campaign: campaign,
+      summary: summary,
+      plays: plays,
+      play_count: plays.length,
+      message: `Found ${plays.length} plays for campaign ${campaignId}`
+    });
+  } catch (error) {
+    console.error('Error getting play data:', error);
+    res.status(500).json({ 
+      error: 'Failed to get play data', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
 // Start the bulletproof server
 startServer().catch((error) => {
   logger.error('Failed to start bulletproof server', {
