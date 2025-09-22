@@ -113,32 +113,51 @@ router.get('/:campaignId/countries', async (req, res) => {
     const { campaignId } = req.params;
     const { default: database } = await import('../services/database');
     
-    // Get country data from plays (using user IP or other geographic data)
-    // For now, we'll use a simplified approach based on user data
-    const countries = database.prepare(`
+    // Get total stats for the campaign first
+    const totalStats = database.prepare(`
       SELECT 
-        'Unknown' as country,
-        COUNT(DISTINCT s.user_id) as listeners,
-        COUNT(DISTINCT a.play_id) as streams
+        COUNT(DISTINCT s.user_id) as total_listeners,
+        COUNT(DISTINCT a.play_id) as total_streams
       FROM attributions a
       JOIN sessions s ON a.click_id = s.click_id
       WHERE a.campaign_id = ? 
       AND a.expires_at > datetime('now')
-    `).get(campaignId) as { country: string, listeners: number, streams: number };
+    `).get(campaignId) as { total_listeners: number, total_streams: number } | undefined;
     
-    // Calculate S/L ratio and format data
+    // Handle case where no data is found
+    if (!totalStats || totalStats.total_listeners === 0) {
+      return res.json({
+        countries: [{
+          name: 'No data available',
+          flag: '🌍',
+          listeners: 0,
+          streams: 0,
+          spl: 0
+        }]
+      });
+    }
+    
+    // For now, show all data as "Unknown" country since we don't have geographic data
+    // In a real implementation, you'd use IP geolocation or user location data
     const countryData = [{
-      name: countries.country,
-      flag: '🌍', // Default flag
-      listeners: countries.listeners,
-      streams: countries.streams,
-      spl: countries.listeners > 0 ? countries.streams / countries.listeners : 0
+      name: 'Unknown',
+      flag: '🌍',
+      listeners: totalStats.total_listeners,
+      streams: totalStats.total_streams,
+      spl: totalStats.total_listeners > 0 ? totalStats.total_streams / totalStats.total_listeners : 0
     }];
     
-    res.json(countryData);
+    res.json({
+      countries: countryData
+    });
   } catch (error) {
-    console.error('Error getting countries data:', error);
-    res.status(500).json({ error: 'Failed to get countries data' });
+    console.error('Error getting countries data for campaign', campaignId, ':', error);
+    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+    res.status(500).json({ 
+      error: 'Failed to get countries data',
+      campaignId: campaignId,
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
