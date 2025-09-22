@@ -497,11 +497,14 @@ router.get('/', (req, res) => {
                     document.getElementById('campaigns-loading').textContent = 'Loading campaigns... API_BASE: ' + API_BASE;
                     document.title = '🔄 Loading... - Dashboard';
                     
-                    const response = await fetch(API_BASE + "/api/campaigns", {
+                    // Add cache-busting parameter to ensure fresh data
+                    const cacheBuster = Date.now();
+                    const response = await fetch(API_BASE + "/api/campaigns?_t=" + cacheBuster, {
                         method: 'GET',
                         credentials: 'include',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache'
                         }
                     });
                     console.log('Response status:', response.status);
@@ -758,7 +761,57 @@ router.get('/', (req, res) => {
             }
 
             function refreshData() {
+                console.log('🔄 Refreshing dashboard data...');
                 loadDashboard();
+            }
+
+            async function runPolling() {
+                try {
+                    console.log('📊 Triggering manual polling and sync...');
+                    
+                    // Show loading state
+                    const syncButton = event.target;
+                    const originalText = syncButton.textContent;
+                    syncButton.textContent = '⏳ Syncing...';
+                    syncButton.disabled = true;
+                    
+                    // Trigger polling service
+                    const response = await fetch(API_BASE + "/debug-trigger-polling", {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to trigger polling');
+                    }
+                    
+                    const result = await response.json();
+                    console.log('✅ Polling triggered:', result);
+                    
+                    // Wait a moment for polling to complete, then refresh dashboard
+                    setTimeout(() => {
+                        console.log('🔄 Refreshing dashboard after polling...');
+                        loadDashboard();
+                    }, 3000);
+                    
+                    // Reset button
+                    setTimeout(() => {
+                        syncButton.textContent = originalText;
+                        syncButton.disabled = false;
+                    }, 3000);
+                    
+                } catch (error) {
+                    console.error('❌ Error running polling:', error);
+                    alert('Failed to sync data: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                    
+                    // Reset button on error
+                    const syncButton = event.target;
+                    syncButton.textContent = '📊 Sync Data';
+                    syncButton.disabled = false;
+                }
             }
 
 
