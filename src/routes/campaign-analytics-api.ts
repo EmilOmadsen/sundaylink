@@ -111,8 +111,8 @@ router.get('/:campaignId/trends', async (req, res) => {
 
 // Get countries data for a campaign
 router.get('/:campaignId/countries', async (req, res) => {
+  const { campaignId } = req.params;
   try {
-    const { campaignId } = req.params;
     const { default: database } = await import('../services/database');
     
     // Get total stats for the campaign first
