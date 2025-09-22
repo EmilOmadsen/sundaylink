@@ -129,8 +129,8 @@ class AttributionService {
 
         try {
           // Get fresh access token
-          const { default: encryption } = await import('../utils/encryption');
-          const refreshToken = encryption.decrypt(user.refresh_token_encrypted);
+          const { decryptRefreshToken } = await import('../utils/encryption');
+          const refreshToken = decryptRefreshToken(user.refresh_token_encrypted);
           const tokens = await spotifyService.refreshAccessToken(refreshToken);
           
           // Fetch playlist tracks
