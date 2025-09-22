@@ -594,6 +594,7 @@ router.get('/', (req, res) => {
                         '<td>' + (campaign.followers_gained || 0) + '</td>' +
                         '<td>' + createdDate + '</td>' +
                         '<td>' +
+                        '<a href="/campaign-analytics/' + campaign.id + '" class="btn btn-small" style="background: #667eea; margin-right: 5px;">📊 Analytics</a>' +
                         '<button onclick="toggleCampaign(\\'' + campaign.id + '\\')" class="btn btn-small btn-secondary">' + (campaign.status === 'active' ? 'Pause' : 'Resume') + '</button>' +
                         '<button onclick="deleteCampaign(\\'' + campaign.id + '\\')" class="btn btn-small btn-danger">Delete</button>' +
                         '</td>';

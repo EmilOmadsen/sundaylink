@@ -1429,6 +1429,7 @@ async function startServer() {
     const simpleAuthRoutes = (await import('./routes/simple-auth')).default;
     const dashboardRoutes = (await import('./routes/dashboard')).default;
     const createCampaignRoutes = (await import('./routes/create-campaign')).default;
+    const campaignAnalyticsRoutes = (await import('./routes/campaign-analytics')).default;
     const campaignRoutes = (await import('./routes/campaigns')).default;
     // const clickRoutes = (await import('./routes/clicks')).default; // DISABLED - using direct handler instead
 
@@ -1437,6 +1438,7 @@ app.use('/auth', authRoutes);
 app.use('/simple-auth', simpleAuthRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/create-campaign', createCampaignRoutes);
+app.use('/campaign-analytics', campaignAnalyticsRoutes);
     app.use('/api/campaigns', campaignRoutes);
     // app.use('/', clickRoutes); // Mount click routes at root level for /c/:campaignId - DISABLED FOR NOW
     
