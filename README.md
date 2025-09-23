@@ -1,232 +1,350 @@
-# Sunday Link
+# Soundlink - Spotify Campaign Analytics Platform
 
-A smart link platform for music artists to track Spotify playlist performance and attribution. Built with Node.js, TypeScript, Express, and SQLite.
+A web application that generates tracker links for Spotify playlists, enabling marketers to track listening analytics when external users authorize with their Spotify accounts and engage with campaign playlists.
 
-## 🎵 Features
+## 🎯 Overview
 
-- **Smart Link Generation**: Create trackable links for Spotify playlists, tracks, and artists
-- **Campaign Management**: Organize and manage multiple campaigns with pause/resume functionality
-- **Real-time Analytics**: Track clicks, streams, unique listeners, and follower growth
-- **Spotify Integration**: Automatic data fetching from Spotify API
-- **Attribution Tracking**: Link clicks to actual Spotify plays
-- **Advanced Analytics**: Comprehensive dashboards with charts and insights
-- **User Authentication**: Secure JWT-based authentication system
-- **Reliable SQLite Database**: Production-ready database with WAL mode and migrations
-
-## 🗄️ SQLite Database
-
-This application uses SQLite with production-ready configurations:
-
-### Database Configuration
-- **WAL Mode**: Write-Ahead Logging for better concurrency
-- **NORMAL Synchronous**: Balanced safety and performance
-- **Foreign Keys**: Enabled for data integrity
-- **Single Replica**: SQLite requires only 1 replica on Railway
-
-### Environment Variables
-```bash
-# Required for Railway deployment
-DB_PATH=/mnt/data/soundlink-lite.db
-
-# For local development
-DB_PATH=./db/soundlink-lite.db
-```
-
-### Database Scripts
-```bash
-# Run migrations
-npm run migrate
-
-# Create backup
-npm run backup:sqlite
-
-# Development versions
-npm run migrate:dev
-npm run backup:sqlite:dev
-```
-
-### Railway Deployment Notes
-- Set `DB_PATH=/mnt/data/soundlink-lite.db` in Railway environment variables
-- Ensure only 1 replica is running (SQLite limitation)
-- Database migrations run automatically on startup
-- Health checks work independently of database state
+Soundlink allows you to:
+- **Create Campaigns**: Generate unique tracker links for Spotify playlists
+- **Track Analytics**: Monitor streams, listeners, and engagement metrics
+- **OAuth Integration**: External users authorize with their Spotify accounts
+- **Real-time Dashboard**: View campaign performance with detailed analytics
 
 ## 🚀 Quick Start
 
-### Option 1: Automated Setup (Recommended)
-```bash
-./start-server.sh
-```
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Spotify Developer Account
+- Railway account (for deployment)
 
-### Option 2: Manual Setup
+### Installation
 
-1. **Install dependencies:**
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/EmilOmadsen/sundaylink.git
+   cd soundlink-lite
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. **Run database migrations:**
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Configure your `.env` file:
+   ```env
+   SPOTIFY_CLIENT_ID=your_spotify_client_id
+   SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+   SPOTIFY_REDIRECT_URI=https://yourdomain.com/auth/spotify/callback
+   ENCRYPTION_KEY=your_32_character_encryption_key
+   DATABASE_PATH=./db/soundlink-lite.db
+   NODE_ENV=development
+   PORT=3000
+   ```
+
+4. **Run database migrations**
    ```bash
    npm run migrate
    ```
 
-3. **Build the project:**
-   ```bash
-   npm run build
-   ```
-
-4. **Start the development server:**
+5. **Start the development server**
    ```bash
    npm run dev
    ```
 
-## 🌐 Access Points
-
-Once the server is running on `http://localhost:3000`:
-
-- **📊 Dashboard:** http://localhost:3000/dashboard
-- **🔐 Login:** http://localhost:3000/simple-auth/login  
-- **📝 Register:** http://localhost:3000/simple-auth/register
-- **🔗 Create Campaign:** http://localhost:3000/create-campaign
-- **🧪 Test Campaign:** http://localhost:3000/test-campaign.html
-
-## 👤 Test Account
-
-- **Email:** test@example.com
-- **Password:** test123
-
-## 🔧 What Was Fixed
-
-The following issues have been resolved:
-
-1. **✅ Environment Configuration:** Created `.env` file with required variables
-2. **✅ Database Schema:** Added missing `user_id` column to campaigns table
-3. **✅ Campaign Creation:** Fixed test endpoint to properly associate campaigns with users
-4. **✅ Authentication:** Ensured proper user authentication flow
-5. **✅ Smart Links:** Verified smart link generation and routing works
-6. **✅ Spotify Integration:** Configured with your Spotify app credentials
-
-## 📋 How to Create Campaigns
-
-### Method 1: Web Interface
-1. Go to http://localhost:3000/simple-auth/login
-2. Login with test account (test@example.com / test123)
-3. Go to http://localhost:3000/create-campaign
-4. Fill out the form and create your campaign
-5. Copy the generated smart link
-
-### Method 2: Test Endpoint
-1. Go to http://localhost:3000/test-campaign.html
-2. Click "Create Test Campaign" button
-3. View the generated smart link
-
-### Method 3: API Direct
-```bash
-curl -X POST http://localhost:3000/api/campaigns/test \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My Campaign",
-    "destination_url": "https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh",
-    "spotify_track_id": "4iV5W9uYEdYUVa79Axb7Rh"
-  }'
-```
-
-## 🔗 Smart Link Format
-
-Smart links are generated in the format:
-```
-http://localhost:3000/c/{campaign_id}
-```
-
-When clicked, they:
-1. Track the click with analytics
-2. Set a click tracking cookie
-3. Redirect to the destination URL
-
-## 📊 Features
-
-- ✅ **Campaign Creation:** Create smart tracking links
-- ✅ **Click Tracking:** Track all clicks with analytics
-- ✅ **User Authentication:** Email/password login system
-- ✅ **Dashboard:** View campaigns and analytics
-- ✅ **Smart Links:** Automatic redirect with tracking
-- ✅ **Spotify Integration:** Track Spotify track/artist/playlist IDs
-- ✅ **UTM Parameters:** Support for marketing campaign tracking
-
-## 🎵 Spotify Integration
-
-Your Spotify app is now configured and ready to use! The system can:
-
-- **Connect Spotify Accounts:** Users can link their Spotify accounts
-- **Track Recently Played:** Monitor what users listen to after clicking links
-- **Attribution Analysis:** Connect clicks to actual music plays
-- **Follower Growth:** Track artist/playlist follower increases
-
-### How to Use Spotify Integration:
-
-1. **Login to your account** at http://localhost:3000/simple-auth/login
-2. **Connect Spotify** by clicking "Connect Spotify" in the dashboard
-3. **Authorize the app** when redirected to Spotify
-4. **Create campaigns** with Spotify track/artist/playlist IDs
-5. **View analytics** to see attribution between clicks and plays
-
-### Spotify App Details:
-- **Client ID:** `cab1f7c20e1343b2a252848cc52c0de9`
-- **Redirect URI:** `http://127.0.0.1:3000/auth/spotify/callback`
-- **Scopes:** `user-read-recently-played`, `user-read-email`
-
-## 🗄️ Database
-
-The system uses SQLite with the following main tables:
-- `campaigns` - Stores campaign data and smart links
-- `users` - User accounts and authentication
-- `clicks` - Click tracking and analytics
-- `sessions` - Links users to clicks for attribution
-
-## 🛠️ Available Scripts
-
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build the TypeScript code to JavaScript
-- `npm run start` - Start the production server
-- `npm run migrate` - Run database migrations
-
-## 🔍 Troubleshooting
-
-### Server won't start
-- Make sure Node.js is installed: `node --version`
-- Check if port 3000 is available
-- Run `npm install` to ensure dependencies are installed
-
-### Campaign creation fails
-- Make sure you're logged in (check cookies)
-- Verify the database is properly migrated
-- Check server logs for error messages
-
-### Smart links don't work
-- Ensure the server is running
-- Check that the campaign exists and is active
-- Verify the campaign ID in the URL is correct
+6. **Build for production**
+   ```bash
+   npm run build
+   npm start
+   ```
 
 ## 📁 Project Structure
 
 ```
-src/
-├── routes/     # Express route handlers
-│   ├── campaigns.ts    # Campaign CRUD operations
-│   ├── clicks.ts       # Smart link click handling
-│   ├── auth.ts         # Authentication routes
-│   ├── dashboard.ts    # Dashboard interface
-│   └── create-campaign.ts # Campaign creation form
-├── services/   # Business logic
-│   ├── campaigns.ts    # Campaign service
-│   ├── auth.ts         # Authentication service
-│   ├── clicks.ts       # Click tracking service
-│   └── database.ts     # Database connection
-├── utils/      # Utility functions
-└── index.ts    # Main application entry point
+soundlink-lite/
+├── src/
+│   ├── index.ts                 # Main server file
+│   ├── routes/                  # Express route handlers
+│   │   ├── auth.ts             # Spotify OAuth handling
+│   │   ├── campaigns.ts        # Campaign management
+│   │   ├── dashboard.ts        # Dashboard UI
+│   │   ├── clicks.ts           # Click tracking
+│   │   ├── metrics.ts          # Analytics endpoints
+│   │   └── campaign-analytics.ts # Individual campaign analytics
+│   ├── services/               # Business logic services
+│   │   ├── attribution.ts      # Data attribution logic
+│   │   ├── spotify.ts          # Spotify API integration
+│   │   ├── polling.ts          # Background data collection
+│   │   ├── database.ts         # Database operations
+│   │   └── users.ts            # User management
+│   └── utils/                  # Utility functions
+│       ├── encryption.ts       # Data encryption
+│       └── id.ts              # ID generation
+├── db/
+│   ├── migrations/             # Database schema migrations
+│   └── soundlink-lite.db       # SQLite database
+├── dist/                       # Compiled TypeScript
+└── package.json
+```
 
-db/
-├── migrations/ # SQL migration files
-└── soundlink-lite.db # SQLite database
-```# Railway Deployment Trigger - Tue Sep 16 13:51:11 CEST 2025
-# Updated Mon Sep 22 13:44:06 CEST 2025
+## 🔧 Configuration
+
+### Spotify Developer Setup
+
+1. **Create a Spotify App**
+   - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+   - Create a new app
+   - Note your `Client ID` and `Client Secret`
+
+2. **Configure Redirect URIs**
+   - Add redirect URIs for your environments:
+     - Development: `http://localhost:3000/auth/spotify/callback`
+     - Production: `https://yourdomain.com/auth/spotify/callback`
+
+3. **Required Scopes**
+   - `user-read-recently-played`
+   - `user-read-private`
+   - `user-read-email`
+
+### Environment Variables
+
+| Variable | Description | Required | Example |
+|----------|-------------|----------|---------|
+| `SPOTIFY_CLIENT_ID` | Spotify app client ID | Yes | `abc123...` |
+| `SPOTIFY_CLIENT_SECRET` | Spotify app client secret | Yes | `def456...` |
+| `SPOTIFY_REDIRECT_URI` | OAuth callback URL | Yes | `https://domain.com/auth/spotify/callback` |
+| `ENCRYPTION_KEY` | 32-character encryption key | Yes | `my32characterencryptionkey123` |
+| `DATABASE_PATH` | SQLite database file path | No | `./db/soundlink-lite.db` |
+| `NODE_ENV` | Environment mode | No | `development` or `production` |
+| `PORT` | Server port | No | `3000` |
+
+## 📊 Usage
+
+### Creating a Campaign
+
+1. **Access Dashboard**
+   - Navigate to `/dashboard`
+   - Click "Create New Campaign"
+
+2. **Configure Campaign**
+   - Enter campaign name
+   - Add Spotify playlist URL
+   - Set expiration date (optional)
+
+3. **Get Tracker Link**
+   - Copy the generated tracker link
+   - Share with your audience
+
+### Analytics Dashboard
+
+1. **View Campaign Metrics**
+   - Total streams from playlist
+   - Unique listeners
+   - Streams per Listener (S/L) ratio
+   - Unique songs played
+   - Followers gained
+
+2. **Detailed Analytics**
+   - Click "Analytics" button for individual campaigns
+   - View trends, countries, and growth data
+   - Export data as needed
+
+### User Flow
+
+1. **User Clicks Tracker Link**
+   - Link redirects to Spotify authorization
+   - User grants permissions to the app
+
+2. **Data Collection**
+   - System tracks user's recently played tracks
+   - Attributes plays to campaign playlist
+   - Updates analytics in real-time
+
+3. **Analytics Display**
+   - Campaign owner sees updated metrics
+   - Data refreshes automatically
+
+## 🔌 API Endpoints
+
+### Campaign Management
+- `GET /dashboard` - Campaign dashboard
+- `POST /campaigns` - Create new campaign
+- `GET /campaigns/:id` - Get campaign details
+- `DELETE /campaigns/:id` - Delete campaign
+
+### Analytics
+- `GET /campaign-analytics/:id` - Campaign analytics page
+- `GET /api/campaign-analytics/:id/overview` - Campaign metrics
+- `GET /api/campaign-analytics/:id/trends` - Time-based trends
+- `GET /api/campaign-analytics/:id/countries` - Geographic data
+- `GET /api/campaign-analytics/:id/growth` - Growth metrics
+
+### Authentication
+- `GET /auth/spotify` - Start Spotify OAuth
+- `GET /auth/spotify/callback` - OAuth callback handler
+
+### Tracking
+- `GET /c/:campaignId` - Tracker link handler
+- `POST /api/clicks` - Record click events
+
+See [API Documentation](docs/API.md) for detailed endpoint specifications.
+
+## 🗄️ Database Schema
+
+The application uses SQLite with the following main tables:
+
+- **campaigns** - Campaign information and metadata
+- **users** - User accounts (email/password and Spotify OAuth)
+- **sessions** - User sessions linked to campaign clicks
+- **clicks** - Tracker link click events
+- **plays** - Spotify track play data
+- **attributions** - Links between plays and campaigns
+
+See [Database Documentation](docs/DATABASE.md) for complete schema details.
+
+## 🚀 Deployment
+
+### Railway Deployment
+
+1. **Connect Repository**
+   - Link your GitHub repository to Railway
+   - Railway will auto-detect Node.js project
+
+2. **Configure Environment**
+   - Add all required environment variables in Railway dashboard
+   - Set `NODE_ENV=production`
+
+3. **Deploy**
+   - Railway will automatically build and deploy
+   - Monitor logs for any issues
+
+### Manual Deployment
+
+1. **Build Application**
+   ```bash
+   npm run build
+   ```
+
+2. **Start Production Server**
+   ```bash
+   npm start
+   ```
+
+3. **Configure Reverse Proxy** (if needed)
+   - Use nginx or similar for SSL and routing
+
+See [Deployment Guide](docs/DEPLOYMENT.md) for detailed instructions.
+
+## 🧪 Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Compile TypeScript to JavaScript
+- `npm run start` - Start production server
+- `npm run migrate` - Run database migrations
+- `npm run lint` - Run ESLint
+
+### Debug Endpoints
+
+The application includes several debug endpoints for development:
+
+- `GET /debug-play-data/:campaignId` - View detailed play data
+- `GET /debug-clear-playlist-cache` - Clear playlist cache
+- `GET /debug-clear-playlist-cache/:playlistId` - Clear specific playlist cache
+
+### Adding New Features
+
+1. **Create Service Layer**
+   - Add business logic in `src/services/`
+   - Follow existing patterns for database operations
+
+2. **Add API Routes**
+   - Create route handlers in `src/routes/`
+   - Register routes in `src/index.ts`
+
+3. **Update Frontend**
+   - Modify dashboard templates in route files
+   - Add JavaScript for new functionality
+
+## 🔒 Security
+
+### Data Protection
+- All sensitive data encrypted with AES-256
+- Spotify tokens encrypted before database storage
+- Input validation on all API endpoints
+
+### Authentication
+- Secure OAuth 2.0 flow with Spotify
+- Session-based authentication for dashboard access
+- Proper token refresh handling
+
+### Best Practices
+- Use HTTPS in production
+- Regular security updates
+- Monitor for suspicious activity
+
+## 📈 Monitoring
+
+### Logs
+- Application logs to console
+- Error tracking for debugging
+- Performance monitoring
+
+### Health Checks
+- Database connectivity
+- Spotify API status
+- System resource usage
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+### Common Issues
+
+**"Illegal redirect_uri" Error**
+- Ensure redirect URI in Spotify app matches exactly
+- Check that protocol (https/http) is correct
+
+**"Failed to create user account" Error**
+- Verify database schema is up to date
+- Check that all required fields are populated
+
+**Analytics Not Updating**
+- Check if polling service is running
+- Verify Spotify API credentials
+- Use manual sync button as fallback
+
+### Getting Help
+
+- Check the [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- Review [API Documentation](docs/API.md)
+- Open an issue on GitHub
+
+## 🔄 Changelog
+
+### Version 1.0.0
+- Initial release
+- Campaign creation and tracking
+- Spotify OAuth integration
+- Analytics dashboard
+- Real-time data collection
+
+---
+
+**Built with ❤️ for music marketers and playlist promoters**
